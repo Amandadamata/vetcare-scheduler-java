@@ -18,6 +18,7 @@ import java.time.LocalDateTime;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.PriorityQueue;
 import java.util.Set;
 import java.util.UUID;
@@ -193,10 +194,9 @@ public class AppointmentService {
         if (signs == null || signs.isEmpty()) {
             return Set.of();
         }
-        if (signs.contains(null)) {
+        if (signs.stream().anyMatch(Objects::isNull)) {
             throw new ValidationException("Clinical signs cannot contain an empty value.");
         }
         return Set.copyOf(new HashSet<>(signs));
     }
 }
-
