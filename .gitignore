@@ -1,0 +1,17 @@
+target/
+.idea/
+.vscode/
+*.iml
+.DS_Store
+
+# Local application data
+data/*.json
+data/*.tmp
+!data/.gitkeep
+
+# Logs and local environment files
+*.log
+.env
+.env.*
+!.env.example
+
