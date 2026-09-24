@@ -2,7 +2,6 @@ package com.amandadamata.vetcare.persistence;
 
 import com.amandadamata.vetcare.exception.DataPersistenceException;
 import com.google.gson.Gson;
-import com.google.gson.JsonParseException;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -36,7 +35,7 @@ public class JsonClinicDataStore implements ClinicDataStore {
             }
             ClinicSnapshot snapshot = gson.fromJson(json, ClinicSnapshot.class);
             return snapshot == null ? ClinicSnapshot.empty() : snapshot;
-        } catch (IOException | JsonParseException | RuntimeException exception) {
+        } catch (IOException | RuntimeException exception) {
             throw new DataPersistenceException(
                     "Could not read clinic data from " + dataFile + ". The file was not changed.", exception);
         }
@@ -74,4 +73,3 @@ public class JsonClinicDataStore implements ClinicDataStore {
         }
     }
 }
-
