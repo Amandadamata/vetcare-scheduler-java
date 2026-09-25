@@ -42,7 +42,7 @@ class ValidatorsTest {
 
     @Test
     void phoneAcceptsEightToFifteenDigitsAndRejectsValuesOutsideThatRange() {
-        assertEquals("(62) 99914-4445", Validators.phone("  (62) 99914-4445 "));
+        assertEquals("+1 202-555-0100", Validators.phone("  +1 202-555-0100 "));
         assertEquals("12345678", Validators.phone("12345678"));
         assertEquals("123456789012345", Validators.phone("123456789012345"));
         assertAll(

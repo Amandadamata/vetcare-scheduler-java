@@ -40,7 +40,7 @@ class JsonClinicDataStoreTest {
         UUID ownerId = UUID.fromString("10000000-0000-0000-0000-000000000001");
         UUID animalId = UUID.fromString("20000000-0000-0000-0000-000000000001");
         UUID appointmentId = UUID.fromString("30000000-0000-0000-0000-000000000001");
-        Owner owner = new Owner(ownerId, "Amanda", "+55 62 99914-4445", "amanda@example.com");
+        Owner owner = new Owner(ownerId, "Amanda", "+1 202-555-0100", "amanda@example.com");
         Animal animal = new Animal(
                 animalId,
                 ownerId,
@@ -77,7 +77,7 @@ class JsonClinicDataStoreTest {
         assertAll(
                 () -> assertEquals(ownerId, loadedOwner.getId()),
                 () -> assertEquals("Amanda", loadedOwner.getName()),
-                () -> assertEquals("+55 62 99914-4445", loadedOwner.getPhone()),
+                () -> assertEquals("+1 202-555-0100", loadedOwner.getPhone()),
                 () -> assertEquals("amanda@example.com", loadedOwner.getEmail()),
                 () -> assertEquals(animalId, loadedAnimal.getId()),
                 () -> assertEquals(ownerId, loadedAnimal.getOwnerId()),
