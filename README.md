@@ -1,5 +1,7 @@
 # VetCare Scheduler
 
+[![Java CI](https://github.com/Amandadamata/vetcare-scheduler-java/actions/workflows/ci.yml/badge.svg)](https://github.com/Amandadamata/vetcare-scheduler-java/actions/workflows/ci.yml)
+
 VetCare Scheduler is a command-line Java application for managing veterinary appointments, calculating a simple triage priority, and preventing schedule conflicts.
 
 It is a personal learning project built to turn Java and software-development fundamentals into a working application with business rules, file persistence, and automated tests.
