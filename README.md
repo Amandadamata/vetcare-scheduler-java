@@ -91,7 +91,7 @@ No global Maven installation is required.
 Clone the repository and enter its directory:
 
 ```bash
-git clone https://github.com/amandadamataprofissional-blip/vetcare-scheduler-java.git
+git clone https://github.com/Amandadamata/vetcare-scheduler-java.git
 cd vetcare-scheduler-java
 ```
 
@@ -156,4 +156,3 @@ For a class-by-class explanation and interview preparation, see [`docs/PROJECT_W
 ## License
 
 This project is available under the [MIT License](LICENSE).
-
