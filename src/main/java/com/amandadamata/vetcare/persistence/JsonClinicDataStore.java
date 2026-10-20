@@ -1,6 +1,7 @@
 package com.amandadamata.vetcare.persistence;
 
 import com.amandadamata.vetcare.exception.DataPersistenceException;
+import com.amandadamata.vetcare.exception.ValidationException;
 import com.google.gson.Gson;
 
 import java.io.IOException;
@@ -33,8 +34,15 @@ public class JsonClinicDataStore implements ClinicDataStore {
             if (json.isBlank()) {
                 return ClinicSnapshot.empty();
             }
-            ClinicSnapshot snapshot = gson.fromJson(json, ClinicSnapshot.class);
-            return snapshot == null ? ClinicSnapshot.empty() : snapshot;
+            ClinicSnapshot parsed = gson.fromJson(json, ClinicSnapshot.class);
+            ClinicSnapshot snapshot = parsed == null ? ClinicSnapshot.empty() : parsed;
+            ClinicSnapshotValidator.validate(snapshot);
+            return snapshot;
+        } catch (ValidationException exception) {
+            throw new DataPersistenceException(
+                    "Clinic data in " + dataFile + " is invalid: " + exception.getMessage()
+                            + " The file was not changed.",
+                    exception);
         } catch (IOException | RuntimeException exception) {
             throw new DataPersistenceException(
                     "Could not read clinic data from " + dataFile + ". The file was not changed.", exception);
