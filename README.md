@@ -2,6 +2,8 @@
 
 [![Java CI](https://github.com/Amandadamata/vetcare-scheduler-java/actions/workflows/ci.yml/badge.svg)](https://github.com/Amandadamata/vetcare-scheduler-java/actions/workflows/ci.yml)
 
+**English** · [Português (Brasil)](README.pt-BR.md)
+
 VetCare Scheduler is a command-line Java application for managing veterinary appointments, calculating a simple triage priority, and preventing schedule conflicts.
 
 It is a personal learning project built to turn Java and software-development fundamentals into a working application with business rules, file persistence, and automated tests.
@@ -15,7 +17,7 @@ It is a personal learning project built to turn Java and software-development fu
 - Calculate `EMERGENCY`, `URGENT`, or `STANDARD` triage priority
 - Order a daily triage queue using `PriorityQueue`
 - Produce a daily summary by status, priority, and appointment type
-- Save data locally as JSON and load it again on the next run
+- Save data locally as JSON and load it again on the next run, rejecting damaged or edited files
 - Validate user input and show clear domain errors
 
 ## Business logic
@@ -28,7 +30,9 @@ The application calculates priority instead of asking the user to choose it dire
 2. `URGENT`: a concerning condition, severe pain, repeated vomiting, or inability to stand, unless an emergency rule already applies.
 3. `STANDARD`: no emergency or urgent rule applies.
 
-The daily queue sorts by priority first, then registration time and scheduled time. A `PriorityQueue` fits this rule because the next appointment can be retrieved according to a comparator instead of repeatedly sorting the complete collection.
+The daily queue sorts by priority first. Within the same priority, the appointment registered first comes first (as in a triage line, where arrival order breaks ties), then scheduled time, then ID.
+
+The queue is built with a `PriorityQueue` and emptied with `poll()`, which always returns the highest-priority appointment. Producing the whole ordered list this way costs O(n log n), the same as sorting a list; a `PriorityQueue` would pay off if the queue were kept between operations and appointments were taken one at a time. It is used here because it models "who is next" directly, and because iterating a `PriorityQueue` without `poll()` would **not** return elements in order.
 
 > These rules are intentionally simplified for a software-learning project. They are not a veterinary protocol or medical guidance.
 
@@ -46,6 +50,8 @@ Adjacent appointments are allowed: `10:00–10:30` and `10:30–11:00` do not ov
 ### Persistence
 
 Data is stored in `data/vetcare-data.json` with Gson. Dates use ISO-8601 values, which are readable and unambiguous. The application writes a temporary file first and then replaces the main file, reducing the chance of leaving a partially written data file.
+
+Gson creates objects without calling the services, so loaded data would otherwise skip every business rule. On startup, `ClinicSnapshotValidator` checks each record: unique IDs, existing owner and animal references, known enum values, and the same field rules used for new input. If anything is wrong, the application reports the record ID and the problem, does not start, and leaves the file untouched for inspection.
 
 Local JSON data is ignored by Git so personal test records are not published.
 
@@ -136,6 +142,8 @@ The test suite covers:
 - cancellation freeing a time slot
 - daily report totals and groupings
 - JSON round-trip persistence and invalid-file handling
+- rejection of valid JSON that contains impossible data (unknown enum values, out-of-range durations, broken references, duplicate IDs)
+- owner and animal registration, updates, searches, and the failed-save path
 
 GitHub Actions runs the full Maven verification on every push and pull request.
 
@@ -145,6 +153,9 @@ GitHub Actions runs the full Maven verification on every push and pull request.
 - The application is local and intended for one running process at a time.
 - JSON is appropriate for this learning scope but does not provide database concurrency or schema migrations.
 - There is no authentication, network API, or graphical interface.
+- Owners and animals cannot be deleted, so personal data can only be removed by editing or deleting the data file.
+- Appointments in the past stay `SCHEDULED`; there is no completed or no-show status.
+- If saving fails, the change remains in memory until the next successful save. The CLI warns the user when this happens.
 - Triage rules are educational examples and must not be used for clinical decisions.
 
 These boundaries are deliberate: the project focuses on understandable Java logic, separation of responsibilities, testing, and documentation.
