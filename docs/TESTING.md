@@ -56,5 +56,5 @@ the real console.
 
 ## Continuous integration
 
-`.github/workflows/ci.yml` runs `./mvnw --batch-mode verify` on Java 21 for every push and pull
+`.github/workflows/ci.yml` runs `./mvnw --batch-mode verify` on Java 21 and 25 for every push and pull
 request to `main`.
