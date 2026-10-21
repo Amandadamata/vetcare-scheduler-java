@@ -112,6 +112,38 @@ class OwnerAndAnimalServiceTest {
     }
 
     @Test
+    void updateAnimalReplacesFieldsAndKeepsTheOwner() {
+        Owner owner = ownerService.register("Test Owner", "+1 202-555-0100", "");
+        Animal animal = animalService.register(owner.getId(), "Luna", Species.DOG, LocalDate.of(2021, 5, 10), "");
+
+        Animal updated = animalService.update(
+                animal.getId(), "Luna Maria", Species.CAT, LocalDate.of(2020, 1, 1), " Indoor only ");
+
+        assertAll(
+                () -> assertEquals("Luna Maria", updated.getName()),
+                () -> assertEquals(Species.CAT, updated.getSpecies()),
+                () -> assertEquals(LocalDate.of(2020, 1, 1), updated.getBirthDate()),
+                () -> assertEquals("Indoor only", updated.getNotes()),
+                () -> assertEquals(owner.getId(), updated.getOwnerId()),
+                () -> assertThrows(NotFoundException.class, () -> animalService.update(
+                        UUID.randomUUID(), "Name", Species.DOG, LocalDate.of(2020, 1, 1), "")));
+    }
+
+    @Test
+    void invalidAnimalUpdateChangesNothing() {
+        Owner owner = ownerService.register("Test Owner", "+1 202-555-0100", "");
+        Animal animal = animalService.register(owner.getId(), "Luna", Species.DOG, LocalDate.of(2021, 5, 10), "");
+        int savesBefore = dataStore.saveCount;
+
+        assertThrows(ValidationException.class, () -> animalService.update(
+                animal.getId(), "Luna", Species.DOG, LocalDate.of(2030, 1, 1), ""));
+
+        assertAll(
+                () -> assertEquals(LocalDate.of(2021, 5, 10), animal.getBirthDate()),
+                () -> assertEquals(savesBefore, dataStore.saveCount));
+    }
+
+    @Test
     void searchByNameIsCaseInsensitiveAndPartial() {
         Owner owner = ownerService.register("Test Owner", "+1 202-555-0100", "");
         Animal luna = animalService.register(owner.getId(), "Luna", Species.DOG, LocalDate.of(2021, 5, 10), "");

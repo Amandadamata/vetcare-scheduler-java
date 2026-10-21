@@ -12,7 +12,7 @@ O VetCare Scheduler é uma aplicação Java de linha de comando para gerenciar c
 
 - Cadastrar e atualizar tutores e animais
 - Buscar animais por parte do nome
-- Agendar, atualizar, remarcar, listar, filtrar e cancelar consultas
+- Agendar, atualizar, remarcar, listar, filtrar e cancelar consultas (até dois anos à frente)
 - Detectar sobreposição de consultas em uma agenda única da clínica
 - Calcular a prioridade de triagem `EMERGENCY`, `URGENT` ou `STANDARD`
 - Ordenar a fila de triagem do dia usando `PriorityQueue`
@@ -84,7 +84,7 @@ src/main/java/com/amandadamata/vetcare/
 └── Main.java     # Montagem e inicialização da aplicação
 
 src/test/java/    # Testes unitários e de integração
-docs/             # Guia do projeto para iniciantes
+docs/             # Arquitetura, decisões, testes e walkthrough
 ```
 
 A `Main` apenas conecta repositório, persistência, serviços e CLI. As regras de negócio ficam fora da interface de console para que possam ser testadas sem digitar no terminal.
@@ -146,8 +146,10 @@ A suíte de testes cobre:
 - persistência JSON de ida e volta e tratamento de arquivo inválido
 - recusa de JSON válido com dados impossíveis (enums desconhecidos, durações fora da faixa, referências quebradas, IDs duplicados)
 - cadastro, atualização e busca de tutores e animais, e o caminho de falha ao salvar
+- atualizações clínicas que recalculam a prioridade de triagem
+- sessões completas do menu com entrada de teclado simulada
 
-O GitHub Actions executa a verificação completa do Maven a cada push e pull request.
+O GitHub Actions executa a verificação completa do Maven a cada push e pull request. Veja [docs/TESTING.md](docs/TESTING.md) para saber o que cada classe de teste verifica.
 
 ## Limitações atuais
 
@@ -166,7 +168,12 @@ Esses limites são intencionais: o projeto foca em lógica Java compreensível, 
 
 Este projeto me ajudou a passar de exercícios isolados de Java para o fluxo completo de uma aplicação. As lições mais importantes foram decidir onde cada regra deve ficar, representar intervalos de tempo corretamente, usar coleções com um propósito real, separar operações de arquivo da lógica de negócio e testar comportamentos em vez de apenas métodos isolados.
 
-Para uma explicação classe por classe e preparação para entrevistas, veja [`docs/PROJECT_WALKTHROUGH.md`](docs/PROJECT_WALKTHROUGH.md) (em inglês).
+## Documentação (em inglês)
+
+- [Arquitetura](docs/ARCHITECTURE.md): diagramas de camadas e de sequência, inicialização, tratamento de erros, gravação
+- [Decisões de projeto](docs/DESIGN_DECISIONS.md): o que foi escolhido, por quê, alternativas e os testes que verificam
+- [Testes](docs/TESTING.md): como executar e o que cada classe verifica
+- [Walkthrough do projeto](docs/PROJECT_WALKTHROUGH.md): explicação classe por classe e perguntas de entrevista
 
 ## Licença
 
