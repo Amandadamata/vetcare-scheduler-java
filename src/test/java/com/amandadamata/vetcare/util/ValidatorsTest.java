@@ -86,6 +86,22 @@ class ValidatorsTest {
     }
 
     @Test
+    void appointmentMustBeWithinTheBookingHorizon() {
+        LocalDateTime limit = NOW.plusYears(Validators.MAX_BOOKING_HORIZON_YEARS);
+
+        assertEquals(limit, Validators.futureAppointment(limit, CLOCK));
+        assertAll(
+                () -> assertThrows(ValidationException.class,
+                        () -> Validators.futureAppointment(limit.plusMinutes(1), CLOCK)),
+                // A year typo and the largest date Java can represent are both rejected
+                // before any end-time arithmetic can overflow.
+                () -> assertThrows(ValidationException.class,
+                        () -> Validators.futureAppointment(LocalDateTime.of(2206, 1, 1, 10, 0), CLOCK)),
+                () -> assertThrows(ValidationException.class,
+                        () -> Validators.futureAppointment(LocalDateTime.MAX, CLOCK)));
+    }
+
+    @Test
     void durationAcceptsInclusiveLimitsAndRejectsValuesOutsideThem() {
         assertEquals(15, Validators.duration(15));
         assertEquals(180, Validators.duration(180));

@@ -10,6 +10,13 @@ import java.util.regex.Pattern;
 public final class Validators {
     private static final Pattern EMAIL_PATTERN = Pattern.compile("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$");
 
+    /**
+     * How far ahead an appointment can be booked. Besides being a sensible clinic rule, the limit
+     * catches year typos (2206 instead of 2026) and keeps end-time calculations far away from
+     * {@link LocalDateTime#MAX}, which would otherwise throw a {@code DateTimeException}.
+     */
+    public static final int MAX_BOOKING_HORIZON_YEARS = 2;
+
     private Validators() {
     }
 
@@ -63,8 +70,13 @@ public final class Validators {
         if (value == null) {
             throw new ValidationException("Appointment date and time are required.");
         }
-        if (!value.isAfter(LocalDateTime.now(clock))) {
+        LocalDateTime now = LocalDateTime.now(clock);
+        if (!value.isAfter(now)) {
             throw new ValidationException("Appointment must be scheduled in the future.");
+        }
+        if (value.isAfter(now.plusYears(MAX_BOOKING_HORIZON_YEARS))) {
+            throw new ValidationException(
+                    "Appointment must be within " + MAX_BOOKING_HORIZON_YEARS + " years from now.");
         }
         return value;
     }
