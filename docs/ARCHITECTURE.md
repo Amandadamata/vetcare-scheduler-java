@@ -210,12 +210,14 @@ sequenceDiagram
     participant PC as PersistenceCoordinator
 
     User->>CLI: option 21 (delete owner)
+    CLI->>PS: ensureOwnerCanBeDeleted(id)
+    Note over CLI,PS: refused here if any related appointment is SCHEDULED,<br/>before asking for confirmation
     CLI->>PS: impactOfOwner(id)
     PS-->>CLI: Impact(animals, appointments)
     CLI-->>User: "This permanently deletes the owner, 2 animal(s) and 5 appointment(s)."<br/>"Type DELETE to confirm, or press Enter to cancel"
     User->>CLI: DELETE
     CLI->>PS: deleteOwnerAndRecords(id)
-    PS->>PS: reject if any related appointment is SCHEDULED
+    PS->>PS: check the same rules again
     PS->>Repo: before = snapshot()
     PS->>Repo: delete appointments, then animals, then the owner
     PS->>PC: saveOrRestore(before)

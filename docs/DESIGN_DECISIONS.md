@@ -177,6 +177,7 @@ verified.
   valid. Anonymization exists because a clinic may want the statistics without the person.
 - **Safeguards:**
   - refused while any related appointment is `SCHEDULED`, so a future visit is not lost silently;
+    the CLI checks this before asking for confirmation, and the operation checks it again;
   - the CLI shows the number of affected records and requires typing `DELETE` or `ANONYMIZE`; a
     stray `y` or Enter cancels;
   - anonymized owners cannot be edited or receive new animals.
@@ -186,7 +187,7 @@ verified.
 - **Not claimed:** compliance with the LGPD or any other law. There are no retention rules, no
   access control, and older backup files are not changed.
 - **Verified by:** `PrivacyServiceTest`, `VetCareCliTest.deletingAnOwnerRequiresTheExactConfirmationWord`,
-  `ownerWithScheduledAppointmentsCannotBeDeleted`, `anonymizingAnOwnerKeepsTheRecordWithoutPersonalData`.
+  `ownerWithScheduledAppointmentsIsRefusedBeforeAskingForConfirmation`, `anonymizingAnOwnerKeepsTheRecordWithoutPersonalData`.
 
 ## 17. Undo deletion and anonymization when saving fails
 

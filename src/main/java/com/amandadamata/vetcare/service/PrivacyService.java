@@ -56,11 +56,28 @@ public class PrivacyService {
         return new Impact(1, appointmentsOf(Set.of(animalId)).size());
     }
 
-    public void deleteOwnerAndRecords(UUID ownerId) {
+    /** Checks only the rules, so the CLI can refuse before asking for a confirmation word. */
+    public void ensureOwnerCanBeDeleted(UUID ownerId) {
         requireOwner(ownerId);
+        rejectScheduled(appointmentsOf(animalIdsOf(ownerId)));
+    }
+
+    public void ensureAnimalCanBeDeleted(UUID animalId) {
+        requireAnimal(animalId);
+        rejectScheduled(appointmentsOf(Set.of(animalId)));
+    }
+
+    public void ensureOwnerCanBeAnonymized(UUID ownerId) {
+        if (requireOwner(ownerId).isAnonymized()) {
+            throw new ValidationException("This owner is already anonymized.");
+        }
+        rejectScheduled(appointmentsOf(animalIdsOf(ownerId)));
+    }
+
+    public void deleteOwnerAndRecords(UUID ownerId) {
+        ensureOwnerCanBeDeleted(ownerId);
         Set<UUID> animalIds = animalIdsOf(ownerId);
         List<Appointment> appointments = appointmentsOf(animalIds);
-        rejectScheduled(appointments);
 
         ClinicSnapshot before = repository.snapshot();
         appointments.forEach(appointment -> repository.deleteAppointment(appointment.getId()));
@@ -70,9 +87,8 @@ public class PrivacyService {
     }
 
     public void deleteAnimalAndRecords(UUID animalId) {
-        requireAnimal(animalId);
+        ensureAnimalCanBeDeleted(animalId);
         List<Appointment> appointments = appointmentsOf(Set.of(animalId));
-        rejectScheduled(appointments);
 
         ClinicSnapshot before = repository.snapshot();
         appointments.forEach(appointment -> repository.deleteAppointment(appointment.getId()));
@@ -81,13 +97,10 @@ public class PrivacyService {
     }
 
     public void anonymizeOwner(UUID ownerId) {
+        ensureOwnerCanBeAnonymized(ownerId);
         Owner owner = requireOwner(ownerId);
-        if (owner.isAnonymized()) {
-            throw new ValidationException("This owner is already anonymized.");
-        }
         Set<UUID> animalIds = animalIdsOf(ownerId);
         List<Appointment> appointments = appointmentsOf(animalIds);
-        rejectScheduled(appointments);
 
         ClinicSnapshot before = repository.snapshot();
         repository.saveOwner(owner.anonymizedCopy());

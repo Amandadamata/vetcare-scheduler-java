@@ -197,15 +197,19 @@ class VetCareCliTest {
     }
 
     @Test
-    void ownerWithScheduledAppointmentsCannotBeDeleted() {
+    void ownerWithScheduledAppointmentsIsRefusedBeforeAskingForConfirmation() {
         String output = run(
                 REGISTER_OWNER_AND_ANIMAL,
                 "3", "1", "1", "2026-09-25 09:00", "30", "1", "", "",
-                "21", "1", "DELETE",
+                "21", "1",
+                "22", "1",
+                "23", "1",
                 "0");
 
         assertAll(
-                () -> assertTrue(output.contains("There are 1 scheduled appointment(s)."), output),
+                () -> assertEquals(3, countOccurrences(output, "There are 1 scheduled appointment(s)."), output),
+                () -> assertFalse(output.contains("Type DELETE to confirm"), output),
+                () -> assertFalse(output.contains("Type ANONYMIZE to confirm"), output),
                 () -> assertEquals(1, dataStore.saved.owners().size()));
     }
 

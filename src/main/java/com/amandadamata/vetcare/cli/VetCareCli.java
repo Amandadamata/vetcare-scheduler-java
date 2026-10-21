@@ -481,6 +481,7 @@ public final class VetCareCli {
         if (owner == null) {
             return;
         }
+        privacyService.ensureOwnerCanBeDeleted(owner.getId());
         PrivacyService.Impact impact = privacyService.impactOfOwner(owner.getId());
         output.printf("This permanently deletes the owner, %d animal(s) and %d appointment(s).%n",
                 impact.animals(), impact.appointments());
@@ -496,6 +497,7 @@ public final class VetCareCli {
         if (owner == null) {
             return;
         }
+        privacyService.ensureOwnerCanBeAnonymized(owner.getId());
         PrivacyService.Impact impact = privacyService.impactOfOwner(owner.getId());
         output.printf("This removes the owner's name, phone and email, the names of %d animal(s), and the notes"
                 + " of %d appointment(s). Appointment dates and outcomes are kept.%n",
@@ -512,6 +514,7 @@ public final class VetCareCli {
         if (animal == null) {
             return;
         }
+        privacyService.ensureAnimalCanBeDeleted(animal.getId());
         PrivacyService.Impact impact = privacyService.impactOfAnimal(animal.getId());
         output.printf("This permanently deletes the animal and %d appointment(s).%n", impact.appointments());
         if (!confirmByTyping("DELETE")) {
