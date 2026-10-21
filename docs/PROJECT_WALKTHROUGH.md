@@ -121,7 +121,7 @@ During rescheduling, the service ignores the appointment being moved. Otherwise 
 - email shape;
 - reasonable phone digit count;
 - birth date not in the future;
-- appointment strictly in the future;
+- appointment strictly in the future and at most two years ahead;
 - duration from 15 to 180 minutes.
 
 The services also validate relationships: an animal needs an existing owner and an appointment needs an existing animal.

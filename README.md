@@ -12,7 +12,7 @@ It is a personal learning project built to turn Java and software-development fu
 
 - Register and update owners and animals
 - Search animals by partial name
-- Schedule, update, reschedule, list, filter, and cancel appointments
+- Schedule, update, reschedule, list, filter, and cancel appointments (up to two years ahead)
 - Detect overlapping appointments in a single-clinic schedule
 - Calculate `EMERGENCY`, `URGENT`, or `STANDARD` triage priority
 - Order a daily triage queue using `PriorityQueue`
@@ -82,7 +82,7 @@ src/main/java/com/amandadamata/vetcare/
 └── Main.java     # Application composition and startup
 
 src/test/java/    # Unit and integration-style tests
-docs/             # Beginner-friendly project walkthrough
+docs/             # Architecture, design decisions, testing, walkthrough
 ```
 
 `Main` only connects the repository, persistence, services, and CLI. Business rules stay outside the console interface so they can be tested without typing into a terminal.
@@ -144,8 +144,10 @@ The test suite covers:
 - JSON round-trip persistence and invalid-file handling
 - rejection of valid JSON that contains impossible data (unknown enum values, out-of-range durations, broken references, duplicate IDs)
 - owner and animal registration, updates, searches, and the failed-save path
+- clinical updates that recalculate the triage priority
+- complete menu sessions driven by simulated keyboard input
 
-GitHub Actions runs the full Maven verification on every push and pull request.
+GitHub Actions runs the full Maven verification on every push and pull request. See [docs/TESTING.md](docs/TESTING.md) for what each test class verifies.
 
 ## Current limitations
 
@@ -164,7 +166,12 @@ These boundaries are deliberate: the project focuses on understandable Java logi
 
 This project helped me move from individual Java exercises to a complete application flow. The most important lessons were deciding where each rule belongs, representing time intervals correctly, using collections for a real purpose, keeping file operations separate from business logic, and testing behavior rather than only individual methods.
 
-For a class-by-class explanation and interview preparation, see [`docs/PROJECT_WALKTHROUGH.md`](docs/PROJECT_WALKTHROUGH.md).
+## Documentation
+
+- [Architecture](docs/ARCHITECTURE.md): layer and sequence diagrams, startup, error handling, saving
+- [Design decisions](docs/DESIGN_DECISIONS.md): what was chosen, why, alternatives, and the tests that verify it
+- [Testing](docs/TESTING.md): how to run tests and what each class verifies
+- [Project walkthrough](docs/PROJECT_WALKTHROUGH.md): class-by-class explanation and interview questions
 
 ## License
 
