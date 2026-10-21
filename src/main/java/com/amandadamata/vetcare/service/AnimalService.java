@@ -46,6 +46,7 @@ public class AnimalService {
 
     public Animal update(UUID id, String name, Species species, LocalDate birthDate, String notes) {
         Animal animal = findById(id);
+        requireOwner(animal.getOwnerId());
         animal.update(
                 Validators.requiredText(name, "Animal name", 100),
                 requireSpecies(species),
@@ -77,6 +78,10 @@ public class AnimalService {
     private void requireOwner(UUID ownerId) {
         if (ownerId == null || repository.findOwner(ownerId).isEmpty()) {
             throw new NotFoundException("An existing owner is required for the animal.");
+        }
+        if (repository.findOwner(ownerId).get().isAnonymized()) {
+            throw new com.amandadamata.vetcare.exception.ValidationException(
+                    "Animals of an anonymized owner cannot be added or edited.");
         }
     }
 

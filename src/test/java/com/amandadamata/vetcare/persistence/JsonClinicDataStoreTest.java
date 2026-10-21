@@ -8,6 +8,7 @@ import com.amandadamata.vetcare.model.AppointmentType;
 import com.amandadamata.vetcare.model.ClinicalSign;
 import com.amandadamata.vetcare.model.Owner;
 import com.amandadamata.vetcare.model.PatientCondition;
+import com.amandadamata.vetcare.model.ScheduleResource;
 import com.amandadamata.vetcare.model.Species;
 import com.amandadamata.vetcare.model.TriagePriority;
 import org.junit.jupiter.api.Test;
@@ -40,6 +41,8 @@ class JsonClinicDataStoreTest {
         UUID ownerId = UUID.fromString("10000000-0000-0000-0000-000000000001");
         UUID animalId = UUID.fromString("20000000-0000-0000-0000-000000000001");
         UUID appointmentId = UUID.fromString("30000000-0000-0000-0000-000000000001");
+        ScheduleResource resource = new ScheduleResource(
+                UUID.fromString("40000000-0000-0000-0000-000000000001"), "Dr. Ana");
         Owner owner = new Owner(ownerId, "Amanda", "+1 202-555-0100", "amanda@example.com");
         Animal animal = new Animal(
                 animalId,
@@ -51,6 +54,7 @@ class JsonClinicDataStoreTest {
         Appointment appointment = new Appointment(
                 appointmentId,
                 animalId,
+                resource.getId(),
                 AppointmentType.EXAM,
                 LocalDateTime.of(2026, 9, 25, 14, 30),
                 45,
@@ -63,7 +67,8 @@ class JsonClinicDataStoreTest {
         Path dataFile = tempDir.resolve("nested/data/clinic.json");
         JsonClinicDataStore store = new JsonClinicDataStore(dataFile);
 
-        store.save(new ClinicSnapshot(List.of(owner), List.of(animal), List.of(appointment)));
+        store.save(new ClinicSnapshot(ClinicSnapshot.CURRENT_SCHEMA_VERSION,
+                List.of(resource), List.of(owner), List.of(animal), List.of(appointment)));
         ClinicSnapshot loaded = store.load();
 
         assertTrue(Files.exists(dataFile));
@@ -87,6 +92,9 @@ class JsonClinicDataStoreTest {
                 () -> assertEquals("Allergic to chicken", loadedAnimal.getNotes()),
                 () -> assertEquals(appointmentId, loadedAppointment.getId()),
                 () -> assertEquals(animalId, loadedAppointment.getAnimalId()),
+                () -> assertEquals(resource.getId(), loadedAppointment.getResourceId()),
+                () -> assertEquals("Dr. Ana", loaded.resources().get(0).getName()),
+                () -> assertEquals(ClinicSnapshot.CURRENT_SCHEMA_VERSION, loaded.schemaVersion()),
                 () -> assertEquals(AppointmentType.EXAM, loadedAppointment.getType()),
                 () -> assertEquals(LocalDateTime.of(2026, 9, 25, 14, 30), loadedAppointment.getStartTime()),
                 () -> assertEquals(45, loadedAppointment.getDurationMinutes()),

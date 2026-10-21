@@ -1,5 +1,6 @@
 package com.amandadamata.vetcare.cli;
 
+import com.amandadamata.vetcare.exception.ChangeUndoneException;
 import com.amandadamata.vetcare.exception.DataPersistenceException;
 import com.amandadamata.vetcare.exception.NotFoundException;
 import com.amandadamata.vetcare.exception.ScheduleConflictException;
@@ -10,6 +11,7 @@ import com.amandadamata.vetcare.model.AppointmentStatus;
 import com.amandadamata.vetcare.model.AppointmentType;
 import com.amandadamata.vetcare.model.ClinicalSign;
 import com.amandadamata.vetcare.model.Owner;
+import com.amandadamata.vetcare.model.ScheduleResource;
 import com.amandadamata.vetcare.model.PatientCondition;
 import com.amandadamata.vetcare.model.Species;
 import com.amandadamata.vetcare.model.TriagePriority;
@@ -18,7 +20,9 @@ import com.amandadamata.vetcare.service.AppointmentFilter;
 import com.amandadamata.vetcare.service.AppointmentService;
 import com.amandadamata.vetcare.service.DailySummary;
 import com.amandadamata.vetcare.service.OwnerService;
+import com.amandadamata.vetcare.service.PrivacyService;
 import com.amandadamata.vetcare.service.ReportService;
+import com.amandadamata.vetcare.service.ScheduleResourceService;
 
 import java.io.PrintWriter;
 import java.io.Reader;
@@ -42,12 +46,14 @@ import java.util.stream.Collectors;
  */
 public final class VetCareCli {
     private static final DateTimeFormatter DATE_TIME_DISPLAY = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
-    private static final int LAST_MENU_OPTION = 16;
+    private static final int LAST_MENU_OPTION = 24;
 
     private final OwnerService ownerService;
     private final AnimalService animalService;
     private final AppointmentService appointmentService;
     private final ReportService reportService;
+    private final ScheduleResourceService resourceService;
+    private final PrivacyService privacyService;
     private final Clock clock;
     private final ConsoleInput input;
     private final PrintWriter output;
@@ -60,6 +66,8 @@ public final class VetCareCli {
             AnimalService animalService,
             AppointmentService appointmentService,
             ReportService reportService,
+            ScheduleResourceService resourceService,
+            PrivacyService privacyService,
             Clock clock,
             Reader inputReader,
             PrintWriter output) {
@@ -67,6 +75,8 @@ public final class VetCareCli {
         this.animalService = Objects.requireNonNull(animalService, "animalService");
         this.appointmentService = Objects.requireNonNull(appointmentService, "appointmentService");
         this.reportService = Objects.requireNonNull(reportService, "reportService");
+        this.resourceService = Objects.requireNonNull(resourceService, "resourceService");
+        this.privacyService = Objects.requireNonNull(privacyService, "privacyService");
         this.clock = Objects.requireNonNull(clock, "clock");
         this.output = Objects.requireNonNull(output, "output");
         this.input = new ConsoleInput(Objects.requireNonNull(inputReader, "inputReader"), output);
@@ -120,8 +130,19 @@ public final class VetCareCli {
                 case 14 -> cancelAppointment();
                 case 15 -> showTriageQueue();
                 case 16 -> showDailySummary();
+                case 17 -> registerResource();
+                case 18 -> listResources();
+                case 19 -> showResourceSchedule();
+                case 20 -> recordAttendance();
+                case 21 -> deleteOwnerAndRecords();
+                case 22 -> anonymizeOwner();
+                case 23 -> deleteAnimalAndRecords();
+                case 24 -> deleteResource();
                 default -> throw new IllegalStateException("Unexpected menu option: " + option);
             }
+        } catch (ChangeUndoneException exception) {
+            output.println("Persistence error: " + exception.getMessage());
+            output.println("The change was undone, so nothing was modified.");
         } catch (DataPersistenceException exception) {
             persistenceHealthy = false;
             output.println("Persistence error: " + exception.getMessage());
@@ -159,6 +180,14 @@ public final class VetCareCli {
         output.println(" 14. Cancel appointment");
         output.println(" 15. View triage queue");
         output.println(" 16. View daily summary");
+        output.println(" 17. Register schedule (veterinarian or room)");
+        output.println(" 18. List schedules");
+        output.println(" 19. View a schedule");
+        output.println(" 20. Record attendance (completed / no-show)");
+        output.println(" 21. Delete owner and all their records");
+        output.println(" 22. Anonymize owner (keep appointment history)");
+        output.println(" 23. Delete animal and its appointments");
+        output.println(" 24. Delete unused schedule");
         output.println("  0. Exit");
     }
 
@@ -259,6 +288,11 @@ public final class VetCareCli {
             output.println("Register an animal before scheduling an appointment.");
             return;
         }
+        ScheduleResource resource = selectResource("Select the schedule");
+        if (resource == null) {
+            output.println("Register a schedule (option 17) before scheduling an appointment.");
+            return;
+        }
 
         AppointmentType type = input.readEnum(
                 "Appointment type",
@@ -274,7 +308,7 @@ public final class VetCareCli {
         String notes = input.readLine("Notes (optional): ");
 
         Appointment appointment = appointmentService.schedule(
-                animal.getId(), type, startTime, duration, condition, signs, notes);
+                animal.getId(), resource.getId(), type, startTime, duration, condition, signs, notes);
         output.printf("Appointment scheduled successfully with %s priority.%n",
                 appointment.getPriority().getDisplayName());
         printAppointment(appointment, null);
@@ -299,8 +333,10 @@ public final class VetCareCli {
                 "Triage priority",
                 TriagePriority.values(),
                 TriagePriority::getDisplayName);
+        ScheduleResource resource = readOptionalResource();
 
-        AppointmentFilter filter = new AppointmentFilter(date, status, type, priority);
+        AppointmentFilter filter = new AppointmentFilter(
+                date, status, type, priority, resource == null ? null : resource.getId());
         printAppointments(appointmentService.list(filter), "Filtered appointments");
     }
 
@@ -337,7 +373,8 @@ public final class VetCareCli {
             return;
         }
 
-        output.println("Press Enter to keep the current start time or duration.");
+        output.println("Press Enter to keep the current schedule, start time, or duration.");
+        ScheduleResource resource = readResourceKeepingCurrent(appointment.getResourceId());
         LocalDateTime startTime = input.readDateTimeOrDefault(
                 "New start (yyyy-MM-dd HH:mm) [" + DATE_TIME_DISPLAY.format(appointment.getStartTime()) + "]: ",
                 appointment.getStartTime());
@@ -347,7 +384,7 @@ public final class VetCareCli {
                 180,
                 appointment.getDurationMinutes());
 
-        Appointment updated = appointmentService.reschedule(appointment.getId(), startTime, duration);
+        Appointment updated = appointmentService.reschedule(appointment.getId(), resource.getId(), startTime, duration);
         output.println("Appointment rescheduled successfully.");
         printAppointment(updated, null);
     }
@@ -386,8 +423,10 @@ public final class VetCareCli {
 
         output.println("Daily summary for " + summary.date());
         output.println("  Total appointments: " + summary.total());
-        output.println("  Scheduled: " + summary.scheduled());
-        output.println("  Cancelled: " + summary.cancelled());
+        output.println("  By status:");
+        for (AppointmentStatus status : AppointmentStatus.values()) {
+            output.printf("    %-10s %d%n", status.getDisplayName() + ":", summary.byStatus().get(status));
+        }
         output.println("  By priority:");
         for (TriagePriority priority : TriagePriority.values()) {
             output.printf("    %-10s %d%n", priority.getDisplayName() + ":", summary.byPriority().get(priority));
@@ -396,6 +435,157 @@ public final class VetCareCli {
         for (AppointmentType type : AppointmentType.values()) {
             output.printf("    %-13s %d%n", type.getDisplayName() + ":", summary.byType().get(type));
         }
+    }
+
+    private void registerResource() {
+        String name = input.readRequiredText("Schedule name (for example, Dr. Ana or Room 2): ");
+        ScheduleResource resource = resourceService.register(name);
+        output.println("Schedule registered: " + resource.getName());
+    }
+
+    private void listResources() {
+        List<ScheduleResource> resources = resourceService.listAll();
+        output.println("Schedules (" + resources.size() + ")");
+        if (resources.isEmpty()) {
+            output.println("  No schedules registered yet.");
+        }
+        for (int index = 0; index < resources.size(); index++) {
+            output.printf("[%d] %s%n    ID: %s%n", index + 1, resources.get(index).getName(), resources.get(index).getId());
+        }
+    }
+
+    private void showResourceSchedule() {
+        ScheduleResource resource = selectResource("Select the schedule to view");
+        if (resource == null) {
+            output.println("No schedules registered yet.");
+            return;
+        }
+        LocalDate date = input.readOptionalDate("Date (yyyy-MM-dd, Enter for all dates): ");
+        printAppointments(appointmentService.list(AppointmentFilter.forResource(resource.getId(), date)),
+                "Schedule " + resource.getName() + (date == null ? "" : " on " + date));
+    }
+
+    private void recordAttendance() {
+        Appointment appointment = selectScheduledAppointment("Select the appointment");
+        if (appointment == null) {
+            return;
+        }
+        AppointmentStatus[] outcomes = {AppointmentStatus.COMPLETED, AppointmentStatus.NO_SHOW};
+        AppointmentStatus outcome = input.readEnum("Outcome", outcomes, AppointmentStatus::getDisplayName);
+        Appointment updated = appointmentService.changeStatus(appointment.getId(), outcome);
+        output.println("Appointment marked as " + updated.getStatus().getDisplayName() + ".");
+    }
+
+    private void deleteOwnerAndRecords() {
+        Owner owner = selectOwner("Select the owner to delete");
+        if (owner == null) {
+            return;
+        }
+        PrivacyService.Impact impact = privacyService.impactOfOwner(owner.getId());
+        output.printf("This permanently deletes the owner, %d animal(s) and %d appointment(s).%n",
+                impact.animals(), impact.appointments());
+        if (!confirmByTyping("DELETE")) {
+            return;
+        }
+        privacyService.deleteOwnerAndRecords(owner.getId());
+        output.println("Owner and related records deleted.");
+    }
+
+    private void anonymizeOwner() {
+        Owner owner = selectOwner("Select the owner to anonymize");
+        if (owner == null) {
+            return;
+        }
+        PrivacyService.Impact impact = privacyService.impactOfOwner(owner.getId());
+        output.printf("This removes the owner's name, phone and email, the names of %d animal(s), and the notes"
+                + " of %d appointment(s). Appointment dates and outcomes are kept.%n",
+                impact.animals(), impact.appointments());
+        if (!confirmByTyping("ANONYMIZE")) {
+            return;
+        }
+        privacyService.anonymizeOwner(owner.getId());
+        output.println("Owner anonymized.");
+    }
+
+    private void deleteAnimalAndRecords() {
+        Animal animal = selectAnimal("Select the animal to delete");
+        if (animal == null) {
+            return;
+        }
+        PrivacyService.Impact impact = privacyService.impactOfAnimal(animal.getId());
+        output.printf("This permanently deletes the animal and %d appointment(s).%n", impact.appointments());
+        if (!confirmByTyping("DELETE")) {
+            return;
+        }
+        privacyService.deleteAnimalAndRecords(animal.getId());
+        output.println("Animal and its appointments deleted.");
+    }
+
+    private void deleteResource() {
+        ScheduleResource resource = selectResource("Select the schedule to delete");
+        if (resource == null) {
+            output.println("No schedules registered yet.");
+            return;
+        }
+        resourceService.delete(resource.getId());
+        output.println("Schedule deleted: " + resource.getName());
+    }
+
+    /** Destructive actions need the exact word, so a stray "y" cannot delete data. */
+    private boolean confirmByTyping(String word) {
+        String typed = input.readLine("Type " + word + " to confirm, or press Enter to cancel: ");
+        if (!typed.equals(word)) {
+            output.println("Nothing was changed.");
+            return false;
+        }
+        return true;
+    }
+
+    /** With a single schedule there is nothing to choose; it is selected automatically. */
+    private ScheduleResource selectResource(String heading) {
+        List<ScheduleResource> resources = resourceService.listAll();
+        if (resources.isEmpty()) {
+            return null;
+        }
+        if (resources.size() == 1) {
+            output.println("Schedule: " + resources.get(0).getName());
+            return resources.get(0);
+        }
+        output.println(heading);
+        for (int index = 0; index < resources.size(); index++) {
+            output.printf("  %d. %s%n", index + 1, resources.get(index).getName());
+        }
+        return resources.get(input.readInt("Selection: ", 1, resources.size()) - 1);
+    }
+
+    private ScheduleResource readOptionalResource() {
+        List<ScheduleResource> resources = resourceService.listAll();
+        if (resources.size() < 2) {
+            return null;
+        }
+        output.println("Schedule");
+        output.println("  0. Any");
+        for (int index = 0; index < resources.size(); index++) {
+            output.printf("  %d. %s%n", index + 1, resources.get(index).getName());
+        }
+        int choice = input.readInt("Selection: ", 0, resources.size());
+        return choice == 0 ? null : resources.get(choice - 1);
+    }
+
+    private ScheduleResource readResourceKeepingCurrent(UUID currentId) {
+        List<ScheduleResource> resources = resourceService.listAll();
+        ScheduleResource current = resourceService.findById(currentId);
+        if (resources.size() < 2) {
+            return current;
+        }
+        output.println("Schedule");
+        for (int index = 0; index < resources.size(); index++) {
+            output.printf("  %d. %s%n", index + 1, resources.get(index).getName());
+        }
+        int currentNumber = resources.indexOf(current) + 1;
+        int choice = input.readIntOrDefault(
+                "Selection (Enter keeps " + current.getName() + "): ", 1, resources.size(), currentNumber);
+        return resources.get(choice - 1);
     }
 
     private Owner selectOwner(String heading) {
@@ -420,7 +610,7 @@ public final class VetCareCli {
 
     private Appointment selectScheduledAppointment(String heading) {
         List<Appointment> appointments = appointmentService.list(
-                new AppointmentFilter(null, AppointmentStatus.SCHEDULED, null, null));
+                new AppointmentFilter(null, AppointmentStatus.SCHEDULED, null, null, null));
         if (appointments.isEmpty()) {
             output.println("There are no scheduled appointments available for this action.");
             return null;
@@ -579,10 +769,11 @@ public final class VetCareCli {
 
     private void printAppointment(Appointment appointment, Integer index) {
         String prefix = index == null ? "" : "[" + index + "] ";
-        output.printf("%s%s to %s | %s | %s | %s | %s%n",
+        output.printf("%s%s to %s | %s | %s | %s | %s | %s%n",
                 prefix,
                 DATE_TIME_DISPLAY.format(appointment.getStartTime()),
                 DATE_TIME_DISPLAY.format(appointment.getEndTime()),
+                resourceName(appointment.getResourceId()),
                 animalName(appointment.getAnimalId()),
                 appointment.getType().getDisplayName(),
                 appointment.getPriority().getDisplayName(),
@@ -602,6 +793,14 @@ public final class VetCareCli {
             return ownerService.findById(ownerId).getName();
         } catch (NotFoundException exception) {
             return "Unknown owner (" + ownerId + ")";
+        }
+    }
+
+    private String resourceName(UUID resourceId) {
+        try {
+            return resourceService.findById(resourceId).getName();
+        } catch (NotFoundException exception) {
+            return "Unknown schedule (" + resourceId + ")";
         }
     }
 

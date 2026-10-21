@@ -1,0 +1,50 @@
+{
+  "owners": [
+    {
+      "id": "67e7701e-1b84-4661-a659-2e38ff607615",
+      "name": "Test Owner",
+      "phone": "+1 202-555-0100",
+      "email": "owner@example.com"
+    }
+  ],
+  "animals": [
+    {
+      "id": "517c9034-27f9-4fa9-8de9-92a5283fb624",
+      "ownerId": "67e7701e-1b84-4661-a659-2e38ff607615",
+      "name": "Luna",
+      "species": "DOG",
+      "birthDate": "2021-05-10",
+      "notes": "Allergic to chicken"
+    }
+  ],
+  "appointments": [
+    {
+      "id": "4ebd449c-1cd4-40f0-a022-ee6a245aedc8",
+      "animalId": "517c9034-27f9-4fa9-8de9-92a5283fb624",
+      "type": "CONSULTATION",
+      "startTime": "2027-03-10T09:00",
+      "durationMinutes": 30,
+      "condition": "CONCERNING",
+      "clinicalSigns": [
+        "SEVERE_PAIN"
+      ],
+      "notes": "Bring previous exams",
+      "priority": "URGENT",
+      "status": "SCHEDULED",
+      "createdAt": "2026-10-21T14:25:27.535792Z"
+    },
+    {
+      "id": "b1cba0a4-6e56-4df9-9420-a8aa9fa29696",
+      "animalId": "517c9034-27f9-4fa9-8de9-92a5283fb624",
+      "type": "VACCINATION",
+      "startTime": "2027-03-10T09:30",
+      "durationMinutes": 30,
+      "condition": "STABLE",
+      "clinicalSigns": [],
+      "notes": "",
+      "priority": "STANDARD",
+      "status": "CANCELLED",
+      "createdAt": "2026-10-21T14:25:27.538499Z"
+    }
+  ]
+}

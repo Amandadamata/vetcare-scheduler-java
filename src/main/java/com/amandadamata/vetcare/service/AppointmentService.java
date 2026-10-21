@@ -15,6 +15,7 @@ import com.amandadamata.vetcare.util.Validators;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
@@ -56,6 +57,7 @@ public class AppointmentService {
 
     public Appointment schedule(
             UUID animalId,
+            UUID resourceId,
             AppointmentType type,
             LocalDateTime startTime,
             int durationMinutes,
@@ -63,6 +65,7 @@ public class AppointmentService {
             Set<ClinicalSign> clinicalSigns,
             String notes) {
         requireAnimal(animalId);
+        requireResource(resourceId);
         AppointmentType validType = requireType(type);
         PatientCondition validCondition = requireCondition(condition);
         LocalDateTime validStart = Validators.futureAppointment(startTime, clock);
@@ -70,11 +73,12 @@ public class AppointmentService {
         Set<ClinicalSign> validSigns = copySigns(clinicalSigns);
         String validNotes = Validators.optionalText(notes, "Notes", 500);
 
-        conflictService.ensureAvailable(repository.allAppointments(), validStart, validDuration, null);
+        conflictService.ensureAvailable(repository.allAppointments(), resourceId, validStart, validDuration, null);
         TriagePriority priority = triageService.calculate(validCondition, validSigns);
         Appointment appointment = new Appointment(
                 UUID.randomUUID(),
                 animalId,
+                resourceId,
                 validType,
                 validStart,
                 validDuration,
@@ -110,20 +114,45 @@ public class AppointmentService {
         return appointment;
     }
 
-    public Appointment reschedule(UUID id, LocalDateTime newStart, int newDurationMinutes) {
+    /** Moves a scheduled appointment to a new time and, optionally, to another schedule. */
+    public Appointment reschedule(UUID id, UUID resourceId, LocalDateTime newStart, int newDurationMinutes) {
         Appointment appointment = requireScheduled(id);
+        requireResource(resourceId);
         LocalDateTime validStart = Validators.futureAppointment(newStart, clock);
         int validDuration = Validators.duration(newDurationMinutes);
-        conflictService.ensureAvailable(repository.allAppointments(), validStart, validDuration, id);
-        appointment.reschedule(validStart, validDuration);
+        conflictService.ensureAvailable(repository.allAppointments(), resourceId, validStart, validDuration, id);
+        appointment.reschedule(resourceId, validStart, validDuration);
         repository.saveAppointment(appointment);
         persistence.save();
         return appointment;
     }
 
     public Appointment cancel(UUID id) {
-        Appointment appointment = requireScheduled(id);
-        appointment.cancel();
+        return changeStatus(id, AppointmentStatus.CANCELLED);
+    }
+
+    /**
+     * Moves a scheduled appointment to a final status.
+     *
+     * <p>Completed and no-show can only be recorded once the appointment has started: the passing
+     * of time alone never marks anything as completed, and nobody can attend or miss an
+     * appointment that has not begun. Cancelling is allowed at any time while it is scheduled.
+     */
+    public Appointment changeStatus(UUID id, AppointmentStatus newStatus) {
+        Appointment appointment = findById(id);
+        if (newStatus == null) {
+            throw new ValidationException("A new status is required.");
+        }
+        if (!appointment.getStatus().canTransitionTo(newStatus)) {
+            throw new ValidationException("An appointment that is " + appointment.getStatus().getDisplayName()
+                    + " cannot become " + newStatus.getDisplayName() + ".");
+        }
+        boolean recordsAttendance = newStatus == AppointmentStatus.COMPLETED
+                || newStatus == AppointmentStatus.NO_SHOW;
+        if (recordsAttendance && appointment.getStartTime().isAfter(LocalDateTime.now(clock))) {
+            throw new ValidationException("Attendance can only be recorded after the appointment has started.");
+        }
+        appointment.changeStatus(newStatus);
         repository.saveAppointment(appointment);
         persistence.save();
         return appointment;
@@ -140,7 +169,8 @@ public class AppointmentService {
                 (safeFilter.date() == null || appointment.getStartTime().toLocalDate().equals(safeFilter.date()))
                         && (safeFilter.status() == null || appointment.getStatus() == safeFilter.status())
                         && (safeFilter.type() == null || appointment.getType() == safeFilter.type())
-                        && (safeFilter.priority() == null || appointment.getPriority() == safeFilter.priority());
+                        && (safeFilter.priority() == null || appointment.getPriority() == safeFilter.priority())
+                        && (safeFilter.resourceId() == null || safeFilter.resourceId().equals(appointment.getResourceId()));
 
         return repository.allAppointments().stream()
                 .filter(matches)
@@ -153,9 +183,9 @@ public class AppointmentService {
             throw new ValidationException("A date is required for the triage queue.");
         }
         PriorityQueue<Appointment> queue = new PriorityQueue<>(TRIAGE_ORDER);
-        list(new AppointmentFilter(date, AppointmentStatus.SCHEDULED, null, null)).forEach(queue::offer);
+        list(new AppointmentFilter(date, AppointmentStatus.SCHEDULED, null, null, null)).forEach(queue::offer);
 
-        java.util.ArrayList<Appointment> ordered = new java.util.ArrayList<>();
+        List<Appointment> ordered = new ArrayList<>();
         while (!queue.isEmpty()) {
             ordered.add(queue.poll());
         }
@@ -164,10 +194,17 @@ public class AppointmentService {
 
     private Appointment requireScheduled(UUID id) {
         Appointment appointment = findById(id);
-        if (appointment.getStatus() == AppointmentStatus.CANCELLED) {
-            throw new ValidationException("A cancelled appointment cannot be changed.");
+        if (appointment.getStatus() != AppointmentStatus.SCHEDULED) {
+            throw new ValidationException("Only scheduled appointments can be changed; this one is "
+                    + appointment.getStatus().getDisplayName() + ".");
         }
         return appointment;
+    }
+
+    private void requireResource(UUID resourceId) {
+        if (resourceId == null || repository.findResource(resourceId).isEmpty()) {
+            throw new NotFoundException("An existing schedule is required for the appointment.");
+        }
     }
 
     private void requireAnimal(UUID animalId) {

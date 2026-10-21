@@ -40,8 +40,10 @@ class ReportServiceTest {
         assertAll(
                 () -> assertEquals(DATE, summary.date()),
                 () -> assertEquals(3, summary.total()),
-                () -> assertEquals(2, summary.scheduled()),
-                () -> assertEquals(1, summary.cancelled()),
+                () -> assertEquals(2L, summary.byStatus().get(AppointmentStatus.SCHEDULED)),
+                () -> assertEquals(1L, summary.byStatus().get(AppointmentStatus.CANCELLED)),
+                () -> assertEquals(0L, summary.byStatus().get(AppointmentStatus.COMPLETED)),
+                () -> assertEquals(0L, summary.byStatus().get(AppointmentStatus.NO_SHOW)),
                 () -> assertEquals(2L, summary.byPriority().get(TriagePriority.EMERGENCY)),
                 () -> assertEquals(1L, summary.byPriority().get(TriagePriority.URGENT)),
                 () -> assertEquals(0L, summary.byPriority().get(TriagePriority.STANDARD)),
@@ -56,6 +58,7 @@ class ReportServiceTest {
         DailySummary summary = new ReportService(new ClinicRepository()).dailySummary(DATE);
 
         assertEquals(0, summary.total());
+        assertEquals(Set.of(AppointmentStatus.values()), summary.byStatus().keySet());
         assertEquals(Set.of(TriagePriority.values()), summary.byPriority().keySet());
         assertEquals(Set.of(AppointmentType.values()), summary.byType().keySet());
         assertEquals(List.of(0L, 0L, 0L),
@@ -81,6 +84,7 @@ class ReportServiceTest {
         return new Appointment(
                 id,
                 UUID.fromString("10000000-0000-0000-0000-000000000001"),
+                UUID.fromString("40000000-0000-0000-0000-000000000001"),
                 type,
                 start,
                 30,

@@ -1,5 +1,7 @@
 package com.amandadamata.vetcare.persistence;
 
+import com.amandadamata.vetcare.exception.ChangeUndoneException;
+import com.amandadamata.vetcare.exception.DataPersistenceException;
 import com.amandadamata.vetcare.repository.ClinicRepository;
 
 public class PersistenceCoordinator {
@@ -17,5 +19,22 @@ public class PersistenceCoordinator {
 
     public void save() {
         dataStore.save(repository.snapshot());
+    }
+
+    /**
+     * Saves, and if saving fails puts the repository back to {@code before}.
+     *
+     * <p>Used by operations that remove or replace whole records (deletion and anonymization), so
+     * a failed save never leaves personal data deleted in memory but still on disk, or the other
+     * way around. {@code before} must be taken before the change with
+     * {@link ClinicRepository#snapshot()}.
+     */
+    public void saveOrRestore(ClinicSnapshot before) {
+        try {
+            save();
+        } catch (DataPersistenceException exception) {
+            repository.load(before);
+            throw new ChangeUndoneException(exception);
+        }
     }
 }

@@ -8,7 +8,9 @@ import com.amandadamata.vetcare.repository.ClinicRepository;
 import com.amandadamata.vetcare.service.AnimalService;
 import com.amandadamata.vetcare.service.AppointmentService;
 import com.amandadamata.vetcare.service.OwnerService;
+import com.amandadamata.vetcare.service.PrivacyService;
 import com.amandadamata.vetcare.service.ReportService;
+import com.amandadamata.vetcare.service.ScheduleResourceService;
 import com.amandadamata.vetcare.service.ScheduleConflictService;
 import com.amandadamata.vetcare.service.TriageService;
 
@@ -41,9 +43,8 @@ public final class Main {
         }
 
         ClinicRepository repository = new ClinicRepository();
-        PersistenceCoordinator persistence = new PersistenceCoordinator(
-                repository,
-                new JsonClinicDataStore(dataFile));
+        JsonClinicDataStore dataStore = new JsonClinicDataStore(dataFile);
+        PersistenceCoordinator persistence = new PersistenceCoordinator(repository, dataStore);
 
         try {
             persistence.load();
@@ -53,6 +54,12 @@ public final class Main {
             error.println("Correct or replace the data file, or set VETCARE_DATA_FILE to a readable JSON file.");
             return;
         }
+
+        dataStore.migrationBackup().ifPresent(backup -> {
+            output.println("The data file was converted to the current format. Existing appointments were placed");
+            output.println("in a schedule named \"Main schedule\". The original file was kept at:");
+            output.println("  " + backup.toAbsolutePath().normalize());
+        });
 
         Clock clock = Clock.systemDefaultZone();
         OwnerService ownerService = new OwnerService(repository, persistence);
@@ -66,6 +73,8 @@ public final class Main {
                 conflictService,
                 clock);
         ReportService reportService = new ReportService(repository);
+        ScheduleResourceService resourceService = new ScheduleResourceService(repository, persistence);
+        PrivacyService privacyService = new PrivacyService(repository, persistence);
 
         output.println("Data file: " + dataFile.toAbsolutePath().normalize());
         new VetCareCli(
@@ -73,6 +82,8 @@ public final class Main {
                 animalService,
                 appointmentService,
                 reportService,
+                resourceService,
+                privacyService,
                 clock,
                 new InputStreamReader(System.in, StandardCharsets.UTF_8),
                 output)

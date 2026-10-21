@@ -24,7 +24,8 @@ class ClinicRepositoryTest {
         Animal animal = new Animal(UUID.randomUUID(), owner.getId(), "Luna", Species.DOG,
                 LocalDate.of(2021, 5, 10), "");
 
-        repository.load(new ClinicSnapshot(List.of(owner), List.of(animal), List.of()));
+        repository.load(new ClinicSnapshot(ClinicSnapshot.CURRENT_SCHEMA_VERSION,
+                List.of(), List.of(owner), List.of(animal), List.of()));
 
         assertAll(
                 () -> assertEquals(List.of(owner), repository.allOwners()),

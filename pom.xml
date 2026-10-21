@@ -6,7 +6,7 @@
 
     <groupId>com.amandadamata</groupId>
     <artifactId>vetcare-scheduler-java</artifactId>
-    <version>1.0.0</version>
+    <version>1.1.0</version>
     <name>VetCare Scheduler</name>
     <description>Java application for veterinary appointment scheduling, triage prioritization, and conflict detection.</description>
 

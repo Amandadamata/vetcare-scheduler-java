@@ -4,6 +4,9 @@ import java.time.LocalDate;
 import java.util.UUID;
 
 public class Animal {
+    /** Name shown for animals whose owner was anonymized. */
+    public static final String ANONYMIZED_NAME = "Anonymized animal";
+
     private UUID id;
     private UUID ownerId;
     private String name;
@@ -23,6 +26,11 @@ public class Animal {
         this.species = species;
         this.birthDate = birthDate;
         this.notes = notes;
+    }
+
+    /** A copy without the name and free-text notes; species and birth date are kept for statistics. */
+    public Animal anonymizedCopy() {
+        return new Animal(id, ownerId, ANONYMIZED_NAME, species, birthDate, "");
     }
 
     public void update(String name, Species species, LocalDate birthDate, String notes) {
