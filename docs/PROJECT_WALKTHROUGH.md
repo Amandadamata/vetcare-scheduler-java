@@ -147,7 +147,7 @@ The JSON file is excluded by `.gitignore`. That prevents local names, contact in
 
 ## 8. How the tests work
 
-The tests use JUnit 5 and real project objects instead of a mocking library.
+The tests use JUnit 6 and real project objects instead of a mocking library.
 
 - `Clock.fixed(...)` makes “now” deterministic.
 - `@TempDir` gives persistence tests an isolated temporary folder.

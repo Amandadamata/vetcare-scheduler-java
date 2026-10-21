@@ -65,7 +65,7 @@ Local JSON data is ignored by Git so personal test records are not published.
 - Input validation and custom exceptions
 - JSON file I/O and persistence boundaries
 - Dependency injection through constructors
-- Automated tests with JUnit 5
+- Automated tests with JUnit 6
 - Maven build and GitHub Actions continuous integration
 
 ## Project structure

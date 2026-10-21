@@ -67,7 +67,7 @@ Os dados JSON locais são ignorados pelo Git, para que registros pessoais de tes
 - Validação de entradas e exceções personalizadas
 - Leitura e gravação de JSON com fronteiras de persistência
 - Injeção de dependências por construtor
-- Testes automatizados com JUnit 5
+- Testes automatizados com JUnit 6
 - Build com Maven e integração contínua com GitHub Actions
 
 ## Estrutura do projeto
