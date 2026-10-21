@@ -190,6 +190,43 @@ class AppointmentServiceTest {
     }
 
     @Test
+    void updateClinicalDetailsRecalculatesPriorityAndPersists() {
+        Appointment appointment = appointment(id(1), TARGET_DATE.atTime(9, 0), AppointmentStatus.SCHEDULED,
+                AppointmentType.CONSULTATION, TriagePriority.STANDARD, NOW);
+        repository.saveAppointment(appointment);
+
+        Appointment updated = service.updateClinicalDetails(
+                appointment.getId(),
+                AppointmentType.EXAM,
+                PatientCondition.STABLE,
+                Set.of(ClinicalSign.SEIZURE),
+                "  Seizure reported by owner  ");
+
+        assertAll(
+                () -> assertEquals(TriagePriority.EMERGENCY, updated.getPriority()),
+                () -> assertEquals(AppointmentType.EXAM, updated.getType()),
+                () -> assertEquals(Set.of(ClinicalSign.SEIZURE), updated.getClinicalSigns()),
+                () -> assertEquals("Seizure reported by owner", updated.getNotes()),
+                () -> assertEquals(TARGET_DATE.atTime(9, 0), updated.getStartTime()),
+                () -> assertEquals(1, dataStore.saveCount));
+    }
+
+    @Test
+    void invalidClinicalUpdateChangesNothing() {
+        Appointment appointment = appointment(id(1), TARGET_DATE.atTime(9, 0), AppointmentStatus.SCHEDULED,
+                AppointmentType.CONSULTATION, TriagePriority.STANDARD, NOW);
+        repository.saveAppointment(appointment);
+
+        assertThrows(ValidationException.class, () -> service.updateClinicalDetails(
+                appointment.getId(), AppointmentType.EXAM, null, Set.of(ClinicalSign.SEIZURE), ""));
+
+        assertAll(
+                () -> assertEquals(AppointmentType.CONSULTATION, appointment.getType()),
+                () -> assertEquals(TriagePriority.STANDARD, appointment.getPriority()),
+                () -> assertEquals(0, dataStore.saveCount));
+    }
+
+    @Test
     void cancelChangesStatusPersistsAndPreventsFurtherChanges() {
         Appointment appointment = appointment(id(1), TARGET_DATE.atTime(9, 0), AppointmentStatus.SCHEDULED,
                 AppointmentType.CONSULTATION, TriagePriority.STANDARD, NOW);
