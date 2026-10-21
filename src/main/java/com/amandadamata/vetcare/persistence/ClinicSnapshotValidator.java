@@ -39,8 +39,11 @@ final class ClinicSnapshotValidator {
                 Validators.requiredText(owner.getName(), "Owner name", 100);
                 requirePresent(owner.getPhone(), "phone");
                 requirePresent(owner.getEmail(), "email (use \"\" when there is none)");
-                if (!owner.isAnonymized()) {
-                    // Anonymized owners have no phone or email on purpose.
+                if (owner.isAnonymized()) {
+                    if (!owner.getPhone().isEmpty() || !owner.getEmail().isEmpty()) {
+                        throw new ValidationException("An anonymized owner cannot keep a phone or email.");
+                    }
+                } else {
                     Validators.phone(owner.getPhone());
                     Validators.email(owner.getEmail());
                 }

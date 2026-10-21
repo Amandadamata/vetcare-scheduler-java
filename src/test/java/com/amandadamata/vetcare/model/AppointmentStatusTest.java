@@ -19,14 +19,17 @@ class AppointmentStatusTest {
             "SCHEDULED, NO_SHOW,   true",
             "SCHEDULED, CANCELLED, true",
             "COMPLETED, SCHEDULED, false",
+            "COMPLETED, COMPLETED, false",
             "COMPLETED, NO_SHOW,   false",
             "COMPLETED, CANCELLED, false",
             "NO_SHOW,   SCHEDULED, false",
             "NO_SHOW,   COMPLETED, false",
+            "NO_SHOW,   NO_SHOW,   false",
             "NO_SHOW,   CANCELLED, false",
             "CANCELLED, SCHEDULED, false",
             "CANCELLED, COMPLETED, false",
-            "CANCELLED, NO_SHOW,   false"})
+            "CANCELLED, NO_SHOW,   false",
+            "CANCELLED, CANCELLED, false"})
     void transitionTable(AppointmentStatus from, AppointmentStatus to, boolean allowed) {
         assertEquals(allowed, from.canTransitionTo(to));
     }

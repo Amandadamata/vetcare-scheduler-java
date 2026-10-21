@@ -1,5 +1,6 @@
 package com.amandadamata.vetcare.cli;
 
+import com.amandadamata.vetcare.exception.ChangeUndoneException;
 import com.amandadamata.vetcare.exception.DataPersistenceException;
 import com.amandadamata.vetcare.exception.NotFoundException;
 import com.amandadamata.vetcare.exception.ScheduleConflictException;
@@ -139,6 +140,9 @@ public final class VetCareCli {
                 case 24 -> deleteResource();
                 default -> throw new IllegalStateException("Unexpected menu option: " + option);
             }
+        } catch (ChangeUndoneException exception) {
+            output.println("Persistence error: " + exception.getMessage());
+            output.println("The change was undone, so nothing was modified.");
         } catch (DataPersistenceException exception) {
             persistenceHealthy = false;
             output.println("Persistence error: " + exception.getMessage());

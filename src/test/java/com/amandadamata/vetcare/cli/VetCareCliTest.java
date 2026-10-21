@@ -224,6 +224,21 @@ class VetCareCliTest {
                 () -> assertTrue(dataStore.saved.owners().get(0).isAnonymized()));
     }
 
+    @Test
+    void failedDeletionIsUndoneAndNotReportedAsAChangeInMemory() {
+        run(REGISTER_OWNER_AND_ANIMAL, "0");
+        dataStore.failSaves = true;
+
+        String output = run("21", "1", "DELETE", "4", "0");
+        String afterError = output.substring(output.indexOf("Persistence error"));
+
+        assertAll(
+                () -> assertTrue(afterError.contains("The change was undone, so nothing was modified."), output),
+                () -> assertFalse(output.contains("may exist only in memory"), output),
+                () -> assertTrue(afterError.contains("Test Owner"), output),
+                () -> assertTrue(output.contains("Clinic data was saved after each completed change."), output));
+    }
+
     private static int countOccurrences(String text, String fragment) {
         int count = 0;
         for (int index = text.indexOf(fragment); index >= 0; index = text.indexOf(fragment, index + 1)) {
@@ -246,6 +261,7 @@ class VetCareCliTest {
 
         ClinicRepository repository = new ClinicRepository();
         PersistenceCoordinator persistence = new PersistenceCoordinator(repository, dataStore);
+        persistence.load();
         OwnerService ownerService = new OwnerService(repository, persistence);
         AnimalService animalService = new AnimalService(repository, persistence, CLOCK);
         AppointmentService appointmentService = new AppointmentService(

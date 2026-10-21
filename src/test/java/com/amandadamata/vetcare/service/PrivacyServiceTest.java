@@ -1,5 +1,6 @@
 package com.amandadamata.vetcare.service;
 
+import com.amandadamata.vetcare.exception.ChangeUndoneException;
 import com.amandadamata.vetcare.exception.DataPersistenceException;
 import com.amandadamata.vetcare.exception.NotFoundException;
 import com.amandadamata.vetcare.exception.ValidationException;
@@ -163,9 +164,9 @@ class PrivacyServiceTest {
     void failedSaveRestoresEverythingThatWasDeletedOrAnonymized() {
         dataStore.failSaves = true;
 
-        assertThrows(DataPersistenceException.class, () -> privacy.deleteOwnerAndRecords(owner.getId()));
-        assertThrows(DataPersistenceException.class, () -> privacy.anonymizeOwner(owner.getId()));
-        assertThrows(DataPersistenceException.class, () -> privacy.deleteAnimalAndRecords(luna.getId()));
+        assertThrows(ChangeUndoneException.class, () -> privacy.deleteOwnerAndRecords(owner.getId()));
+        assertThrows(ChangeUndoneException.class, () -> privacy.anonymizeOwner(owner.getId()));
+        assertThrows(ChangeUndoneException.class, () -> privacy.deleteAnimalAndRecords(luna.getId()));
 
         assertAll(
                 () -> assertEquals("Test Owner", repository.findOwner(owner.getId()).orElseThrow().getName()),

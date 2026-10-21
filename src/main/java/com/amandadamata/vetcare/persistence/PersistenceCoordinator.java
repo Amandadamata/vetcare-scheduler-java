@@ -1,5 +1,6 @@
 package com.amandadamata.vetcare.persistence;
 
+import com.amandadamata.vetcare.exception.ChangeUndoneException;
 import com.amandadamata.vetcare.exception.DataPersistenceException;
 import com.amandadamata.vetcare.repository.ClinicRepository;
 
@@ -33,7 +34,7 @@ public class PersistenceCoordinator {
             save();
         } catch (DataPersistenceException exception) {
             repository.load(before);
-            throw exception;
+            throw new ChangeUndoneException(exception);
         }
     }
 }

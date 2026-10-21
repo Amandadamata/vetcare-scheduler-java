@@ -73,7 +73,8 @@ class InvalidClinicDataTest {
             "blank animal name            | \"name\": \"Luna\"                  | \"name\": \"  \"                      | Animal name is required",
             "null owner email             | \"email\": \"owner@example.com\"    | \"email\": null                       | missing or unknown email",
             "appointment for no schedule  | \"resourceId\": \"" + RESOURCE_ID + "\" | \"resourceId\": \"" + OWNER_ID + "\" | refers to a missing schedule",
-            "unknown new status           | \"status\": \"SCHEDULED\"           | \"status\": \"POSTPONED\"             | missing or unknown status"
+            "unknown new status           | \"status\": \"SCHEDULED\"           | \"status\": \"POSTPONED\"             | missing or unknown status",
+            "anonymized owner with contact | \"owner@example.com\"}             | \"owner@example.com\", \"anonymized\": true} | An anonymized owner cannot keep a phone or email"
     })
     void semanticallyInvalidDataIsRejectedWithAClearMessage(
             String scenario, String original, String replacement, String expectedMessage) throws IOException {
