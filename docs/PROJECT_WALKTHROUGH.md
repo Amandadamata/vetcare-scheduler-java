@@ -87,7 +87,9 @@ These are simplified software rules, not a real clinical protocol.
 
 `EMERGENCY` has rank `0`, so it comes before `URGENT` (`1`) and `STANDARD` (`2`).
 
-One subtle Java detail: iterating a `PriorityQueue` does **not** guarantee priority order. The code repeatedly calls `poll()` on a copied queue to produce the ordered result.
+One subtle Java detail: iterating a `PriorityQueue` does **not** guarantee priority order. The code repeatedly calls `poll()` to produce the ordered result.
+
+Cost: inserting *n* appointments and polling all of them is O(n log n), the same as sorting a list with the comparator. The `PriorityQueue` is a modeling choice ("who is next?"), not a performance gain for this one-off listing. It would become more efficient than re-sorting if the queue were kept alive and appointments were added and taken one at a time.
 
 ## 5. Schedule-conflict logic
 
@@ -124,12 +126,14 @@ During rescheduling, the service ignores the appointment being moved. Otherwise 
 
 The services also validate relationships: an animal needs an existing owner and an appointment needs an existing animal.
 
+Data loaded from disk is validated too. Gson builds objects through their private constructors without calling the services, so `ClinicSnapshotValidator` re-checks every loaded record with the same rules.
+
 Custom exceptions describe categories of expected failure:
 
 - `ValidationException`: input violates a rule;
 - `NotFoundException`: an ID or relationship does not exist;
 - `ScheduleConflictException`: an active time interval overlaps;
-- `DataPersistenceException`: JSON could not be safely read or written.
+- `DataPersistenceException`: JSON could not be safely read or written, or it contains invalid data.
 
 The CLI catches these errors and prints a short message rather than exposing a stack trace to the user.
 
@@ -137,7 +141,7 @@ The CLI catches these errors and prints a short message rather than exposing a s
 
 After a successful change, the service asks `PersistenceCoordinator` to save a snapshot. Gson converts the snapshot to readable JSON.
 
-`JsonClinicDataStore` writes to a `.tmp` file first. Only after the write succeeds does it replace the real data file. If the existing JSON is invalid, loading fails with a clear message and the application does not silently overwrite it.
+`JsonClinicDataStore` writes to a `.tmp` file first. Only after the write succeeds does it replace the real data file. If the existing file is not valid JSON, or is valid JSON with impossible data (for example an unknown appointment type or an appointment for a missing animal), loading fails with a clear message and the application does not silently overwrite it.
 
 The JSON file is excluded by `.gitignore`. That prevents local names, contact information, and test data from being published by mistake.
 
@@ -201,7 +205,7 @@ The system checks emergency conditions and signs first, then urgent conditions a
 
 ### 4. Why did you use a `PriorityQueue`?
 
-The triage view needs the next appointment according to multiple priority rules. A `PriorityQueue` retrieves the highest-priority element through its comparator. I poll a copy because direct iteration is not guaranteed to be ordered.
+The triage view needs the next appointment according to multiple priority rules. A `PriorityQueue` retrieves the highest-priority element through its comparator, and I poll it because direct iteration is not guaranteed to be ordered. For building the full list once, this costs the same as sorting (O(n log n)); I chose it because it models "who is next" and would pay off if the queue were kept and consumed incrementally.
 
 ### 5. How do you detect a schedule conflict?
 
@@ -229,7 +233,9 @@ After each successful change, a repository snapshot is converted to JSON. Startu
 
 ### 11. What happens if the JSON is corrupted?
 
-Loading throws a `DataPersistenceException` with the file location. The application does not replace the invalid file automatically, so the original data remains available for inspection.
+There are two cases. If the file is not valid JSON, Gson fails and loading throws a `DataPersistenceException` with the file location. If it is valid JSON but contains impossible data, such as an unknown enum value (which Gson silently turns into `null`), a duration of 5000 minutes, or an appointment for an animal that does not exist, `ClinicSnapshotValidator` rejects it and the message names the record and the rule. In both cases the application does not start and does not change the file, so the original data remains available for inspection.
+
+An earlier version only handled the first case; the second loaded silently and later crashed the daily report. The fix and its tests are in `ClinicSnapshotValidator` and `InvalidClinicDataTest`.
 
 ### 12. Why inject `Clock`?
 
