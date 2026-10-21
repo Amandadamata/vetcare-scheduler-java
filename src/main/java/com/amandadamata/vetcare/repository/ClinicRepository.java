@@ -3,6 +3,7 @@ package com.amandadamata.vetcare.repository;
 import com.amandadamata.vetcare.model.Animal;
 import com.amandadamata.vetcare.model.Appointment;
 import com.amandadamata.vetcare.model.Owner;
+import com.amandadamata.vetcare.model.ScheduleResource;
 import com.amandadamata.vetcare.persistence.ClinicSnapshot;
 
 import java.util.ArrayList;
@@ -13,21 +14,29 @@ import java.util.Optional;
 import java.util.UUID;
 
 public class ClinicRepository {
+    private final Map<UUID, ScheduleResource> resources = new LinkedHashMap<>();
     private final Map<UUID, Owner> owners = new LinkedHashMap<>();
     private final Map<UUID, Animal> animals = new LinkedHashMap<>();
     private final Map<UUID, Appointment> appointments = new LinkedHashMap<>();
 
     public void load(ClinicSnapshot snapshot) {
+        resources.clear();
         owners.clear();
         animals.clear();
         appointments.clear();
+        snapshot.resources().forEach(resource -> resources.put(resource.getId(), resource));
         snapshot.owners().forEach(owner -> owners.put(owner.getId(), owner));
         snapshot.animals().forEach(animal -> animals.put(animal.getId(), animal));
         snapshot.appointments().forEach(appointment -> appointments.put(appointment.getId(), appointment));
     }
 
     public ClinicSnapshot snapshot() {
-        return new ClinicSnapshot(allOwners(), allAnimals(), allAppointments());
+        return new ClinicSnapshot(ClinicSnapshot.CURRENT_SCHEMA_VERSION,
+                allResources(), allOwners(), allAnimals(), allAppointments());
+    }
+
+    public void saveResource(ScheduleResource resource) {
+        resources.put(resource.getId(), resource);
     }
 
     public void saveOwner(Owner owner) {
@@ -42,6 +51,26 @@ public class ClinicRepository {
         appointments.put(appointment.getId(), appointment);
     }
 
+    public void deleteResource(UUID id) {
+        resources.remove(id);
+    }
+
+    public void deleteOwner(UUID id) {
+        owners.remove(id);
+    }
+
+    public void deleteAnimal(UUID id) {
+        animals.remove(id);
+    }
+
+    public void deleteAppointment(UUID id) {
+        appointments.remove(id);
+    }
+
+    public Optional<ScheduleResource> findResource(UUID id) {
+        return Optional.ofNullable(resources.get(id));
+    }
+
     public Optional<Owner> findOwner(UUID id) {
         return Optional.ofNullable(owners.get(id));
     }
@@ -52,6 +81,10 @@ public class ClinicRepository {
 
     public Optional<Appointment> findAppointment(UUID id) {
         return Optional.ofNullable(appointments.get(id));
+    }
+
+    public List<ScheduleResource> allResources() {
+        return new ArrayList<>(resources.values());
     }
 
     public List<Owner> allOwners() {
@@ -66,4 +99,3 @@ public class ClinicRepository {
         return new ArrayList<>(appointments.values());
     }
 }
-

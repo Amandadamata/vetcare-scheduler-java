@@ -9,6 +9,7 @@ import java.util.UUID;
 public class Appointment {
     private UUID id;
     private UUID animalId;
+    private UUID resourceId;
     private AppointmentType type;
     private LocalDateTime startTime;
     private int durationMinutes;
@@ -27,6 +28,7 @@ public class Appointment {
     public Appointment(
             UUID id,
             UUID animalId,
+            UUID resourceId,
             AppointmentType type,
             LocalDateTime startTime,
             int durationMinutes,
@@ -38,6 +40,7 @@ public class Appointment {
             Instant createdAt) {
         this.id = id;
         this.animalId = animalId;
+        this.resourceId = resourceId;
         this.type = type;
         this.startTime = startTime;
         this.durationMinutes = durationMinutes;
@@ -53,7 +56,8 @@ public class Appointment {
         return startTime.plusMinutes(durationMinutes);
     }
 
-    public void reschedule(LocalDateTime startTime, int durationMinutes) {
+    public void reschedule(UUID resourceId, LocalDateTime startTime, int durationMinutes) {
+        this.resourceId = resourceId;
         this.startTime = startTime;
         this.durationMinutes = durationMinutes;
     }
@@ -71,8 +75,21 @@ public class Appointment {
         this.priority = priority;
     }
 
-    public void cancel() {
-        this.status = AppointmentStatus.CANCELLED;
+    /** The caller (AppointmentService) checks that the transition is allowed. */
+    public void changeStatus(AppointmentStatus status) {
+        this.status = status;
+    }
+
+    /** Copy used when an owner is anonymized: free-text notes may contain personal data. */
+    public Appointment withoutNotes() {
+        return new Appointment(id, animalId, resourceId, type, startTime, durationMinutes, condition,
+                clinicalSigns, "", priority, status, createdAt);
+    }
+
+    /** Copy used by the data migration from files written before schedule resources existed. */
+    public Appointment assignedTo(UUID resourceId) {
+        return new Appointment(id, animalId, resourceId, type, startTime, durationMinutes, condition,
+                clinicalSigns, notes, priority, status, createdAt);
     }
 
     public UUID getId() {
@@ -81,6 +98,10 @@ public class Appointment {
 
     public UUID getAnimalId() {
         return animalId;
+    }
+
+    public UUID getResourceId() {
+        return resourceId;
     }
 
     public AppointmentType getType() {
@@ -119,4 +140,3 @@ public class Appointment {
         return createdAt;
     }
 }
-

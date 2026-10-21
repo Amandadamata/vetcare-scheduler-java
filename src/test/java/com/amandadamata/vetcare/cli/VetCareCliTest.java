@@ -11,7 +11,9 @@ import com.amandadamata.vetcare.repository.ClinicRepository;
 import com.amandadamata.vetcare.service.AnimalService;
 import com.amandadamata.vetcare.service.AppointmentService;
 import com.amandadamata.vetcare.service.OwnerService;
+import com.amandadamata.vetcare.service.PrivacyService;
 import com.amandadamata.vetcare.service.ReportService;
+import com.amandadamata.vetcare.service.ScheduleResourceService;
 import com.amandadamata.vetcare.service.ScheduleConflictService;
 import com.amandadamata.vetcare.service.TriageService;
 import org.junit.jupiter.api.Test;
@@ -25,6 +27,7 @@ import java.time.ZoneId;
 
 import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -36,6 +39,7 @@ class VetCareCliTest {
             Instant.parse("2026-09-24T13:00:00Z"), ZoneId.of("America/Sao_Paulo"));
 
     private static final String[] REGISTER_OWNER_AND_ANIMAL = {
+            "17", "Dr. Ana",                                // 17. Register schedule
             "1", "Test Owner", "+1 202-555-0100", "",       // 1. Register owner
             "2", "1", "Luna", "1", "2021-05-10", ""          // 2. Register animal (owner 1, Dog)
     };
@@ -93,7 +97,7 @@ class VetCareCliTest {
                 "0");
 
         assertAll(
-                () -> assertTrue(output.contains("Enter a whole number from 0 to 16."), output),
+                () -> assertTrue(output.contains("Enter a whole number from 0 to 24."), output),
                 () -> assertTrue(output.contains("No animals are registered yet."), output),
                 () -> assertTrue(output.contains("There are no scheduled appointments available for this action."), output),
                 () -> assertTrue(output.contains("Goodbye."), output));
@@ -131,6 +135,103 @@ class VetCareCliTest {
         assertTrue(output.contains("Input closed. VetCare Scheduler is shutting down safely."), output);
     }
 
+    @Test
+    void differentSchedulesCanBeBookedAtTheSameTime() {
+        String output = run(
+                "17", "Dr. Ana",
+                "17", "Dr. Bruno",
+                "1", "Test Owner", "+1 202-555-0100", "",
+                "2", "1", "Luna", "1", "2021-05-10", "",
+                "3", "1", "1", "1", "2026-09-25 14:00", "30", "1", "", "",   // Dr. Ana, 14:00
+                "3", "1", "2", "1", "2026-09-25 14:00", "30", "1", "", "",   // Dr. Bruno, 14:00
+                "3", "1", "1", "1", "2026-09-25 14:15", "30", "1", "", "",   // Dr. Ana again: conflict
+                "19", "1", "2026-09-25",                                      // view Dr. Ana
+                "0");
+
+        assertAll(
+                () -> assertEquals(2, countOccurrences(output, "Appointment scheduled successfully")),
+                () -> assertTrue(output.contains("Could not complete the operation: Schedule conflict"), output),
+                () -> assertTrue(output.contains("Schedule Dr. Ana on 2026-09-25 (1)"), output),
+                () -> assertEquals(2, dataStore.saved.appointments().size()));
+    }
+
+    @Test
+    void schedulingWithoutAnyScheduleExplainsWhatToDo() {
+        String output = run(
+                "1", "Test Owner", "+1 202-555-0100", "",
+                "2", "1", "Luna", "1", "2021-05-10", "",
+                "3", "1",
+                "0");
+
+        assertTrue(output.contains("Register a schedule (option 17) before scheduling an appointment."), output);
+    }
+
+    @Test
+    void attendanceCannotBeRecordedForAFutureAppointment() {
+        String output = run(
+                REGISTER_OWNER_AND_ANIMAL,
+                "3", "1", "1", "2026-09-25 09:00", "30", "1", "", "",
+                "20", "1", "1",                                     // record attendance: Completed
+                "0");
+
+        assertAll(
+                () -> assertTrue(output.contains("Attendance can only be recorded after the appointment has started."), output),
+                () -> assertEquals(AppointmentStatus.SCHEDULED, dataStore.saved.appointments().get(0).getStatus()));
+    }
+
+    @Test
+    void deletingAnOwnerRequiresTheExactConfirmationWord() {
+        String output = run(
+                REGISTER_OWNER_AND_ANIMAL,
+                "21", "1", "yes",                                   // wrong word: nothing changes
+                "21", "1", "DELETE",
+                "4",
+                "0");
+
+        assertAll(
+                () -> assertTrue(output.contains("This permanently deletes the owner, 1 animal(s) and 0 appointment(s)."), output),
+                () -> assertTrue(output.contains("Nothing was changed."), output),
+                () -> assertTrue(output.contains("Owner and related records deleted."), output),
+                () -> assertTrue(output.contains("Registered owners (0)"), output),
+                () -> assertTrue(dataStore.saved.animals().isEmpty()));
+    }
+
+    @Test
+    void ownerWithScheduledAppointmentsCannotBeDeleted() {
+        String output = run(
+                REGISTER_OWNER_AND_ANIMAL,
+                "3", "1", "1", "2026-09-25 09:00", "30", "1", "", "",
+                "21", "1", "DELETE",
+                "0");
+
+        assertAll(
+                () -> assertTrue(output.contains("There are 1 scheduled appointment(s)."), output),
+                () -> assertEquals(1, dataStore.saved.owners().size()));
+    }
+
+    @Test
+    void anonymizingAnOwnerKeepsTheRecordWithoutPersonalData() {
+        String output = run(
+                REGISTER_OWNER_AND_ANIMAL,
+                "22", "1", "ANONYMIZE",
+                "4",
+                "0");
+
+        assertAll(
+                () -> assertTrue(output.contains("Owner anonymized."), output),
+                () -> assertTrue(output.contains("Anonymized owner | phone:"), output),
+                () -> assertFalse(output.substring(output.indexOf("Owner anonymized.")).contains("Test Owner"), output),
+                () -> assertTrue(dataStore.saved.owners().get(0).isAnonymized()));
+    }
+
+    private static int countOccurrences(String text, String fragment) {
+        int count = 0;
+        for (int index = text.indexOf(fragment); index >= 0; index = text.indexOf(fragment, index + 1)) {
+            count++;
+        }
+        return count;
+    }
+
     private String run(Object... inputs) {
         StringBuilder lines = new StringBuilder();
         for (Object input : inputs) {
@@ -156,6 +257,8 @@ class VetCareCliTest {
                 animalService,
                 appointmentService,
                 new ReportService(repository),
+                new ScheduleResourceService(repository, persistence),
+                new PrivacyService(repository, persistence),
                 CLOCK,
                 new StringReader(lines.toString()),
                 new PrintWriter(output, true))

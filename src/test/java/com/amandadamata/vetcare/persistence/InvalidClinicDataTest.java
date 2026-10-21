@@ -24,9 +24,14 @@ class InvalidClinicDataTest {
     private static final String OWNER_ID = "10000000-0000-0000-0000-000000000001";
     private static final String ANIMAL_ID = "20000000-0000-0000-0000-000000000001";
     private static final String APPOINTMENT_ID = "30000000-0000-0000-0000-000000000001";
+    private static final String RESOURCE_ID = "40000000-0000-0000-0000-000000000001";
 
     private static final String VALID_JSON = """
             {
+              "schemaVersion": 2,
+              "resources": [
+                {"id": "%s", "name": "Dr. Ana"}
+              ],
               "owners": [
                 {"id": "%s", "name": "Test Owner", "phone": "+1 202-555-0100", "email": "owner@example.com"}
               ],
@@ -35,13 +40,13 @@ class InvalidClinicDataTest {
                  "birthDate": "2021-05-10", "notes": ""}
               ],
               "appointments": [
-                {"id": "%s", "animalId": "%s", "type": "EXAM", "startTime": "2026-09-25T14:30:00",
+                {"id": "%s", "animalId": "%s", "resourceId": "%s", "type": "EXAM", "startTime": "2026-09-25T14:30:00",
                  "durationMinutes": 45, "condition": "CONCERNING", "clinicalSigns": ["SEVERE_PAIN"],
                  "notes": "", "priority": "URGENT", "status": "SCHEDULED",
                  "createdAt": "2026-09-24T13:00:00Z"}
               ]
             }
-            """.formatted(OWNER_ID, ANIMAL_ID, OWNER_ID, APPOINTMENT_ID, ANIMAL_ID);
+            """.formatted(RESOURCE_ID, OWNER_ID, ANIMAL_ID, OWNER_ID, APPOINTMENT_ID, ANIMAL_ID, RESOURCE_ID);
 
     @TempDir
     Path tempDir;
@@ -66,7 +71,9 @@ class InvalidClinicDataTest {
             "appointment for no animal    | \"animalId\": \"" + ANIMAL_ID + "\" | \"animalId\": \"" + OWNER_ID + "\"    | refers to a missing animal",
             "invalid owner phone          | \"+1 202-555-0100\"                 | \"123\"                               | Phone must contain between 8 and 15 digits",
             "blank animal name            | \"name\": \"Luna\"                  | \"name\": \"  \"                      | Animal name is required",
-            "null owner email             | \"email\": \"owner@example.com\"    | \"email\": null                       | missing or unknown email"
+            "null owner email             | \"email\": \"owner@example.com\"    | \"email\": null                       | missing or unknown email",
+            "appointment for no schedule  | \"resourceId\": \"" + RESOURCE_ID + "\" | \"resourceId\": \"" + OWNER_ID + "\" | refers to a missing schedule",
+            "unknown new status           | \"status\": \"SCHEDULED\"           | \"status\": \"POSTPONED\"             | missing or unknown status"
     })
     void semanticallyInvalidDataIsRejectedWithAClearMessage(
             String scenario, String original, String replacement, String expectedMessage) throws IOException {

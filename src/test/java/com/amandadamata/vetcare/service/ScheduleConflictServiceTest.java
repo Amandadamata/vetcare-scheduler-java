@@ -22,6 +22,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ScheduleConflictServiceTest {
     private static final LocalDateTime TEN_OCLOCK = LocalDateTime.of(2026, 9, 25, 10, 0);
+    private static final UUID RESOURCE = UUID.fromString("40000000-0000-0000-0000-000000000001");
 
     private final ScheduleConflictService service = new ScheduleConflictService();
 
@@ -50,7 +51,8 @@ class ScheduleConflictServiceTest {
                 AppointmentStatus.SCHEDULED);
 
         assertThrows(ScheduleConflictException.class,
-                () -> service.ensureAvailable(List.of(existing), TEN_OCLOCK.plusMinutes(15), 30, null));
+                () -> service.ensureAvailable(
+                        List.of(existing), RESOURCE, TEN_OCLOCK.plusMinutes(15), 30, null));
     }
 
     @Test
@@ -64,17 +66,42 @@ class ScheduleConflictServiceTest {
 
         assertAll(
                 () -> assertDoesNotThrow(() -> service.ensureAvailable(
-                        List.of(scheduled), TEN_OCLOCK.plusMinutes(30), 30, null)),
+                        List.of(scheduled), RESOURCE, TEN_OCLOCK.plusMinutes(30), 30, null)),
                 () -> assertDoesNotThrow(() -> service.ensureAvailable(
-                        List.of(cancelled), TEN_OCLOCK.plusHours(2), 30, null)),
+                        List.of(cancelled), RESOURCE, TEN_OCLOCK.plusHours(2), 30, null)),
                 () -> assertDoesNotThrow(() -> service.ensureAvailable(
-                        List.of(scheduled), TEN_OCLOCK, 30, existingId)));
+                        List.of(scheduled), RESOURCE, TEN_OCLOCK, 30, existingId)));
+    }
+
+    @Test
+    void sameTimeOnAnotherScheduleIsNotAConflict() {
+        Appointment existing = appointment(
+                UUID.fromString("00000000-0000-0000-0000-000000000001"), TEN_OCLOCK, AppointmentStatus.SCHEDULED);
+        UUID otherSchedule = UUID.fromString("40000000-0000-0000-0000-000000000002");
+
+        assertDoesNotThrow(() -> service.ensureAvailable(List.of(existing), otherSchedule, TEN_OCLOCK, 30, null));
+    }
+
+    @Test
+    void completedKeepsTheSlotButNoShowFreesIt() {
+        Appointment completed = appointment(
+                UUID.fromString("00000000-0000-0000-0000-000000000001"), TEN_OCLOCK, AppointmentStatus.COMPLETED);
+        Appointment noShow = appointment(
+                UUID.fromString("00000000-0000-0000-0000-000000000002"), TEN_OCLOCK.plusHours(2),
+                AppointmentStatus.NO_SHOW);
+
+        assertAll(
+                () -> assertThrows(ScheduleConflictException.class,
+                        () -> service.ensureAvailable(List.of(completed), RESOURCE, TEN_OCLOCK.plusMinutes(15), 30, null)),
+                () -> assertDoesNotThrow(
+                        () -> service.ensureAvailable(List.of(noShow), RESOURCE, TEN_OCLOCK.plusHours(2), 30, null)));
     }
 
     private Appointment appointment(UUID id, LocalDateTime start, AppointmentStatus status) {
         return new Appointment(
                 id,
                 UUID.fromString("10000000-0000-0000-0000-000000000001"),
+                RESOURCE,
                 AppointmentType.CONSULTATION,
                 start,
                 30,

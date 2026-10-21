@@ -1,5 +1,6 @@
 package com.amandadamata.vetcare.service;
 
+import com.amandadamata.vetcare.exception.NotFoundException;
 import com.amandadamata.vetcare.exception.ScheduleConflictException;
 import com.amandadamata.vetcare.exception.ValidationException;
 import com.amandadamata.vetcare.model.Animal;
@@ -8,6 +9,7 @@ import com.amandadamata.vetcare.model.AppointmentStatus;
 import com.amandadamata.vetcare.model.AppointmentType;
 import com.amandadamata.vetcare.model.ClinicalSign;
 import com.amandadamata.vetcare.model.PatientCondition;
+import com.amandadamata.vetcare.model.ScheduleResource;
 import com.amandadamata.vetcare.model.Species;
 import com.amandadamata.vetcare.model.TriagePriority;
 import com.amandadamata.vetcare.persistence.ClinicDataStore;
@@ -35,7 +37,10 @@ class AppointmentServiceTest {
     private static final Instant NOW = Instant.parse("2026-09-24T13:00:00Z");
     private static final Clock CLOCK = Clock.fixed(NOW, ZoneId.of("America/Sao_Paulo"));
     private static final LocalDate TARGET_DATE = LocalDate.of(2026, 9, 25);
+    /** NOW expressed in the clock's zone (America/Sao_Paulo, UTC-3): 2026-09-24 10:00. */
+    private static final LocalDateTime NOW_LOCAL = LocalDateTime.of(2026, 9, 24, 10, 0);
     private static final UUID ANIMAL_ID = UUID.fromString("10000000-0000-0000-0000-000000000001");
+    private static final UUID RESOURCE_ID = UUID.fromString("40000000-0000-0000-0000-000000000001");
 
     private ClinicRepository repository;
     private RecordingDataStore dataStore;
@@ -51,6 +56,7 @@ class AppointmentServiceTest {
                 Species.DOG,
                 LocalDate.of(2021, 5, 10),
                 ""));
+        repository.saveResource(new ScheduleResource(RESOURCE_ID, "Dr. Ana"));
         dataStore = new RecordingDataStore();
         service = new AppointmentService(
                 repository,
@@ -66,6 +72,7 @@ class AppointmentServiceTest {
 
         Appointment scheduled = service.schedule(
                 ANIMAL_ID,
+                RESOURCE_ID,
                 AppointmentType.CONSULTATION,
                 TARGET_DATE.atTime(9, 0),
                 45,
@@ -88,6 +95,7 @@ class AppointmentServiceTest {
     void scheduleAcceptsAnImmutableSetOfClinicalSigns() {
         Appointment scheduled = service.schedule(
                 ANIMAL_ID,
+                RESOURCE_ID,
                 AppointmentType.CONSULTATION,
                 TARGET_DATE.atTime(10, 30),
                 30,
@@ -103,6 +111,7 @@ class AppointmentServiceTest {
     void scheduleRejectsConflictWithoutPersistingAnotherAppointment() {
         service.schedule(
                 ANIMAL_ID,
+                RESOURCE_ID,
                 AppointmentType.CONSULTATION,
                 TARGET_DATE.atTime(9, 0),
                 60,
@@ -112,6 +121,7 @@ class AppointmentServiceTest {
 
         assertThrows(ScheduleConflictException.class, () -> service.schedule(
                 ANIMAL_ID,
+                RESOURCE_ID,
                 AppointmentType.EXAM,
                 TARGET_DATE.atTime(9, 30),
                 30,
@@ -155,17 +165,18 @@ class AppointmentServiceTest {
                 TARGET_DATE,
                 AppointmentStatus.SCHEDULED,
                 AppointmentType.CONSULTATION,
-                TriagePriority.EMERGENCY);
+                TriagePriority.EMERGENCY,
+                null);
 
         assertEquals(List.of(id(1)), ids(service.list(filter)));
         assertEquals(List.of(id(1), id(2), id(3), id(4)),
-                ids(service.list(new AppointmentFilter(TARGET_DATE, null, null, null))));
+                ids(service.list(new AppointmentFilter(TARGET_DATE, null, null, null, null))));
         assertEquals(List.of(id(1), id(3), id(4), id(5)),
-                ids(service.list(new AppointmentFilter(null, AppointmentStatus.SCHEDULED, null, null))));
+                ids(service.list(new AppointmentFilter(null, AppointmentStatus.SCHEDULED, null, null, null))));
         assertEquals(List.of(id(1), id(2), id(4), id(5)),
-                ids(service.list(new AppointmentFilter(null, null, AppointmentType.CONSULTATION, null))));
+                ids(service.list(new AppointmentFilter(null, null, AppointmentType.CONSULTATION, null, null))));
         assertEquals(List.of(id(1), id(2), id(3), id(5)),
-                ids(service.list(new AppointmentFilter(null, null, null, TriagePriority.EMERGENCY))));
+                ids(service.list(new AppointmentFilter(null, null, null, TriagePriority.EMERGENCY, null))));
     }
 
     @Test
@@ -239,7 +250,7 @@ class AppointmentServiceTest {
         assertAll(
                 () -> assertThrows(ValidationException.class, () -> service.cancel(appointment.getId())),
                 () -> assertThrows(ValidationException.class, () -> service.reschedule(
-                        appointment.getId(), TARGET_DATE.atTime(12, 0), 30)),
+                appointment.getId(), RESOURCE_ID, TARGET_DATE.atTime(12, 0), 30)),
                 () -> assertThrows(ValidationException.class, () -> service.updateClinicalDetails(
                         appointment.getId(),
                         AppointmentType.EXAM,
@@ -256,7 +267,7 @@ class AppointmentServiceTest {
         repository.saveAppointment(appointment);
 
         Appointment rescheduled = service.reschedule(
-                appointment.getId(), TARGET_DATE.atTime(9, 15), 60);
+                appointment.getId(), RESOURCE_ID, TARGET_DATE.atTime(9, 15), 60);
 
         assertAll(
                 () -> assertEquals(TARGET_DATE.atTime(9, 15), rescheduled.getStartTime()),
@@ -274,11 +285,132 @@ class AppointmentServiceTest {
         repository.saveAppointment(occupied);
 
         assertThrows(ScheduleConflictException.class,
-                () -> service.reschedule(target.getId(), TARGET_DATE.atTime(11, 15), 30));
+                () -> service.reschedule(
+                target.getId(), RESOURCE_ID, TARGET_DATE.atTime(11, 15), 30));
         assertAll(
                 () -> assertEquals(TARGET_DATE.atTime(9, 0), target.getStartTime()),
                 () -> assertEquals(30, target.getDurationMinutes()),
                 () -> assertEquals(0, dataStore.saveCount));
+    }
+
+    @Test
+    void sameTimeIsAllowedOnDifferentSchedulesButNotOnTheSameOne() {
+        UUID otherSchedule = UUID.fromString("40000000-0000-0000-0000-000000000002");
+        repository.saveResource(new ScheduleResource(otherSchedule, "Dr. Bruno"));
+
+        Appointment withAna = scheduleAt(RESOURCE_ID, TARGET_DATE.atTime(14, 0));
+        Appointment withBruno = scheduleAt(otherSchedule, TARGET_DATE.atTime(14, 0));
+
+        assertAll(
+                () -> assertEquals(RESOURCE_ID, withAna.getResourceId()),
+                () -> assertEquals(otherSchedule, withBruno.getResourceId()),
+                () -> assertThrows(ScheduleConflictException.class,
+                        () -> scheduleAt(RESOURCE_ID, TARGET_DATE.atTime(14, 15))),
+                () -> assertEquals(2, repository.allAppointments().size()));
+    }
+
+    @Test
+    void schedulingRequiresAnExistingSchedule() {
+        assertThrows(NotFoundException.class, () -> scheduleAt(UUID.randomUUID(), TARGET_DATE.atTime(14, 0)));
+        assertThrows(NotFoundException.class, () -> scheduleAt(null, TARGET_DATE.atTime(14, 0)));
+    }
+
+    @Test
+    void rescheduleCanMoveToAnotherScheduleAndChecksThatSchedule() {
+        UUID otherSchedule = UUID.fromString("40000000-0000-0000-0000-000000000002");
+        repository.saveResource(new ScheduleResource(otherSchedule, "Dr. Bruno"));
+        Appointment moving = scheduleAt(RESOURCE_ID, TARGET_DATE.atTime(9, 0));
+        scheduleAt(otherSchedule, TARGET_DATE.atTime(11, 0));
+
+        Appointment moved = service.reschedule(moving.getId(), otherSchedule, TARGET_DATE.atTime(10, 0), 30);
+
+        assertAll(
+                () -> assertEquals(otherSchedule, moved.getResourceId()),
+                () -> assertThrows(ScheduleConflictException.class,
+                        () -> service.reschedule(moving.getId(), otherSchedule, TARGET_DATE.atTime(11, 0), 30)));
+    }
+
+    @Test
+    void listCanBeFilteredBySchedule() {
+        UUID otherSchedule = UUID.fromString("40000000-0000-0000-0000-000000000002");
+        repository.saveResource(new ScheduleResource(otherSchedule, "Dr. Bruno"));
+        Appointment withAna = scheduleAt(RESOURCE_ID, TARGET_DATE.atTime(9, 0));
+        scheduleAt(otherSchedule, TARGET_DATE.atTime(9, 0));
+
+        assertEquals(List.of(withAna.getId()),
+                ids(service.list(AppointmentFilter.forResource(RESOURCE_ID, null))));
+    }
+
+    @Test
+    void attendanceCanBeRecordedOnceTheAppointmentHasStarted() {
+        Appointment started = appointment(id(1), NOW_LOCAL.minusMinutes(30), AppointmentStatus.SCHEDULED,
+                AppointmentType.CONSULTATION, TriagePriority.STANDARD, NOW);
+        Appointment alsoStarted = appointment(id(2), NOW_LOCAL.minusHours(3), AppointmentStatus.SCHEDULED,
+                AppointmentType.CONSULTATION, TriagePriority.STANDARD, NOW);
+        repository.saveAppointment(started);
+        repository.saveAppointment(alsoStarted);
+
+        service.changeStatus(started.getId(), AppointmentStatus.COMPLETED);
+        service.changeStatus(alsoStarted.getId(), AppointmentStatus.NO_SHOW);
+
+        assertAll(
+                () -> assertEquals(AppointmentStatus.COMPLETED, started.getStatus()),
+                () -> assertEquals(AppointmentStatus.NO_SHOW, alsoStarted.getStatus()),
+                () -> assertEquals(2, dataStore.saveCount));
+    }
+
+    @Test
+    void attendanceCannotBeRecordedBeforeTheAppointmentStarts() {
+        Appointment future = scheduleAt(RESOURCE_ID, TARGET_DATE.atTime(9, 0));
+        int savesBefore = dataStore.saveCount;
+
+        ValidationException error = assertThrows(ValidationException.class,
+                () -> service.changeStatus(future.getId(), AppointmentStatus.COMPLETED));
+
+        assertAll(
+                () -> assertEquals("Attendance can only be recorded after the appointment has started.", error.getMessage()),
+                () -> assertEquals(AppointmentStatus.SCHEDULED, future.getStatus()),
+                () -> assertEquals(savesBefore, dataStore.saveCount));
+    }
+
+    @Test
+    void finalStatusesCannotChangeOrBeRescheduled() {
+        Appointment completed = appointment(id(1), NOW_LOCAL.minusHours(1), AppointmentStatus.COMPLETED,
+                AppointmentType.CONSULTATION, TriagePriority.STANDARD, NOW);
+        repository.saveAppointment(completed);
+
+        assertAll(
+                () -> assertEquals("An appointment that is Completed cannot become Cancelled.",
+                        assertThrows(ValidationException.class,
+                                () -> service.changeStatus(completed.getId(), AppointmentStatus.CANCELLED)).getMessage()),
+                () -> assertThrows(ValidationException.class,
+                        () -> service.reschedule(completed.getId(), RESOURCE_ID, TARGET_DATE.atTime(9, 0), 30)),
+                () -> assertThrows(ValidationException.class,
+                        () -> service.changeStatus(completed.getId(), null)),
+                () -> assertEquals(AppointmentStatus.COMPLETED, completed.getStatus()),
+                () -> assertEquals(0, dataStore.saveCount));
+    }
+
+    @Test
+    void noShowFreesTheRestOfTheSlotButCompletedDoesNot() {
+        // Both appointments run from 9:45 to 10:15 (the helper uses 30 minutes); "now" is 10:00 local time.
+        Appointment noShow = appointment(id(1), NOW_LOCAL.minusMinutes(15), AppointmentStatus.SCHEDULED,
+                AppointmentType.CONSULTATION, TriagePriority.STANDARD, NOW);
+        repository.saveAppointment(noShow);
+        service.changeStatus(noShow.getId(), AppointmentStatus.NO_SHOW);
+
+        Appointment reused = scheduleAt(RESOURCE_ID, NOW_LOCAL.plusMinutes(5));
+        service.cancel(reused.getId());
+        Appointment completed = appointment(id(2), NOW_LOCAL.minusMinutes(15), AppointmentStatus.COMPLETED,
+                AppointmentType.CONSULTATION, TriagePriority.STANDARD, NOW);
+        repository.saveAppointment(completed);
+
+        assertThrows(ScheduleConflictException.class, () -> scheduleAt(RESOURCE_ID, NOW_LOCAL.plusMinutes(5)));
+    }
+
+    private Appointment scheduleAt(UUID resourceId, LocalDateTime start) {
+        return service.schedule(ANIMAL_ID, resourceId, AppointmentType.CONSULTATION, start, 30,
+                PatientCondition.STABLE, Set.of(), "");
     }
 
     private Appointment appointment(
@@ -291,6 +423,7 @@ class AppointmentServiceTest {
         return new Appointment(
                 id,
                 ANIMAL_ID,
+                RESOURCE_ID,
                 type,
                 start,
                 30,

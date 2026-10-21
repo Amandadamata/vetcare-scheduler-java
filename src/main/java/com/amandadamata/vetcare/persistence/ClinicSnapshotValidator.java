@@ -4,6 +4,7 @@ import com.amandadamata.vetcare.exception.ValidationException;
 import com.amandadamata.vetcare.model.Animal;
 import com.amandadamata.vetcare.model.Appointment;
 import com.amandadamata.vetcare.model.Owner;
+import com.amandadamata.vetcare.model.ScheduleResource;
 import com.amandadamata.vetcare.util.Validators;
 
 import java.util.HashSet;
@@ -23,15 +24,26 @@ final class ClinicSnapshotValidator {
     }
 
     static void validate(ClinicSnapshot snapshot) {
+        Set<UUID> resourceIds = new HashSet<>();
+        for (ScheduleResource resource : snapshot.resources()) {
+            requireUniqueId(resource.getId(), resourceIds, "Schedule");
+            check("Schedule " + resource.getId(),
+                    () -> Validators.requiredText(resource.getName(), "Schedule name", 100));
+        }
+
         Set<UUID> ownerIds = new HashSet<>();
         for (Owner owner : snapshot.owners()) {
             String context = "Owner " + owner.getId();
             requireUniqueId(owner.getId(), ownerIds, "Owner");
             check(context, () -> {
                 Validators.requiredText(owner.getName(), "Owner name", 100);
-                Validators.phone(owner.getPhone());
+                requirePresent(owner.getPhone(), "phone");
                 requirePresent(owner.getEmail(), "email (use \"\" when there is none)");
-                Validators.email(owner.getEmail());
+                if (!owner.isAnonymized()) {
+                    // Anonymized owners have no phone or email on purpose.
+                    Validators.phone(owner.getPhone());
+                    Validators.email(owner.getEmail());
+                }
             });
         }
 
@@ -55,6 +67,7 @@ final class ClinicSnapshotValidator {
             requireUniqueId(appointment.getId(), appointmentIds, "Appointment");
             check(context, () -> {
                 requireReference(appointment.getAnimalId(), animalIds, "animal");
+                requireReference(appointment.getResourceId(), resourceIds, "schedule");
                 requirePresent(appointment.getType(), "type");
                 requirePresent(appointment.getStartTime(), "start time");
                 Validators.duration(appointment.getDurationMinutes());

@@ -1,6 +1,7 @@
 package com.amandadamata.vetcare.service;
 
 import com.amandadamata.vetcare.exception.NotFoundException;
+import com.amandadamata.vetcare.exception.ValidationException;
 import com.amandadamata.vetcare.model.Owner;
 import com.amandadamata.vetcare.persistence.PersistenceCoordinator;
 import com.amandadamata.vetcare.repository.ClinicRepository;
@@ -32,6 +33,9 @@ public class OwnerService {
 
     public Owner update(UUID id, String name, String phone, String email) {
         Owner owner = findById(id);
+        if (owner.isAnonymized()) {
+            throw new ValidationException("An anonymized owner cannot be edited.");
+        }
         owner.update(
                 Validators.requiredText(name, "Owner name", 100),
                 Validators.phone(phone),
