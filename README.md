@@ -1,148 +1,77 @@
-# VetCare Scheduler
+<img width="100%" src="https://capsule-render.vercel.app/api?type=rect&color=A8D5BA&height=120&text=VetCare%20Scheduler&fontSize=36&fontColor=1B4332&fontAlignY=40&desc=Conflict-free%20scheduling%20and%20triage%20for%20vet%20clinics&descSize=16&descAlignY=75" alt="VetCare Scheduler"/>
+
+**English** · [Português](README.pt-BR.md)
 
 [![Java CI](https://github.com/Amandadamata/vetcare-scheduler-java/actions/workflows/ci.yml/badge.svg)](https://github.com/Amandadamata/vetcare-scheduler-java/actions/workflows/ci.yml)
+![Java 21](https://img.shields.io/badge/Java-21-A8D5BA?style=flat-square&logo=openjdk&logoColor=white&labelColor=1B4332)
+![JUnit 6](https://img.shields.io/badge/JUnit%206-123%20tests-A8D5BA?style=flat-square&logo=junit5&logoColor=white&labelColor=1B4332)
+![Maven](https://img.shields.io/badge/Maven-wrapper-A8D5BA?style=flat-square&logo=apachemaven&logoColor=white&labelColor=1B4332)
+![Gson](https://img.shields.io/badge/storage-JSON%20%2B%20Gson-A8D5BA?style=flat-square&labelColor=1B4332)
+[![License: MIT](https://img.shields.io/badge/license-MIT-A8D5BA?style=flat-square&labelColor=1B4332)](LICENSE)
 
-**English** · [Português (Brasil)](README.pt-BR.md)
+A Java 21 command-line app for booking appointments at a vet clinic.
 
-VetCare Scheduler is a command-line Java application for veterinary appointments. It keeps a
-separate schedule for each veterinarian or room, calculates a simple triage priority, prevents
-overlapping bookings on the same schedule, tracks each appointment until it is completed,
-cancelled, or missed, and lets the clinic delete or anonymize personal data.
+## The problem
 
-It is a personal learning project built to turn Java and software-development fundamentals into a
-working application with business rules, file persistence, data migration, and automated tests.
+Small veterinary clinics often book two appointments for the same vet at the same time, or leave an urgent case waiting behind a routine check-up. On a busy day nobody has time to check every slot by hand. And when a client asks the clinic to delete their data, deleting it carelessly can leave appointments pointing to an animal that no longer exists.
+
+## The solution
+
+VetCare keeps one schedule per vet or room. Before booking, it checks whether the new time overlaps an existing appointment on that schedule. When the receptionist records the patient's condition and clinical signs, the app works out a triage priority (emergency, urgent or standard) and builds the day's queue in that order. Everything is saved to a local JSON file, so the data is still there the next time the app opens.
+
+## Demo
+
+![Terminal demo: a conflicting booking is refused, an emergency is accepted, and the triage queue puts it first](docs/assets/demo.gif)
+
+*Luna can't take Dr. Ana's 10:15 slot because Thor is booked from 10:00 to 10:30. At 10:30 the booking goes through, and because Luna has breathing difficulty she is marked as an emergency. The triage queue then shows her first, even though Thor's appointment starts earlier.*
 
 ## Features
 
-- Register and update owners and animals; search animals by partial name
-- Schedules (resources): one per veterinarian, room, or other resource that attends one appointment at a time
-- Schedule, update, reschedule (including to another schedule), list, filter, and cancel appointments
-- Conflict detection per schedule: two schedules can book the same time; one schedule cannot
-- Appointment life cycle: scheduled → completed, no-show, or cancelled, with validated transitions
-- `EMERGENCY`, `URGENT`, or `STANDARD` triage priority calculated from condition and clinical signs
-- Daily triage queue (`PriorityQueue`) and daily summary by status, priority, and type
-- Delete an owner (with animals and appointments) or one animal; or anonymize an owner while keeping the appointment history
-- Local JSON storage with atomic writes, validation on load, and automatic migration of older files with a backup
+- One schedule per vet or room. Two schedules can book the same time, one schedule can't.
+- Triage priority calculated from the patient's condition and clinical signs, never picked by hand.
+- Daily triage queue and daily summary by status, priority and appointment type.
+- Appointment life cycle: scheduled, then completed, no-show or cancelled. Final statuses can't change.
+- Delete or anonymize an owner's data without leaving broken references behind.
+- JSON storage with safe writes, validation on load and automatic migration of older files (with a backup).
 
-## Business logic
+## What this project shows
 
-### Schedules and conflicts
+| Skill | Where / how it shows up |
+|---|---|
+| Layered architecture | `cli` → `service` → `repository` → `persistence`. `VetCareCli` only talks to services, and `Main` is the one place where concrete classes are created and wired by constructor. Swapping JSON for a database would only touch `persistence`. |
+| Business rules | `ScheduleConflictService` rejects an appointment when its interval overlaps another one on the same schedule. Back-to-back slots (10:00–10:30 and 10:30–11:00) are allowed. `TriageService` turns condition and signs into a priority. |
+| Collections with a purpose | `AppointmentService` builds the triage queue with a `PriorityQueue` and a `Comparator` (priority, then arrival, then start time). The repository uses `LinkedHashMap`s keyed by `UUID`. |
+| OOP and modeling | `AppointmentStatus` is an enum that defines its own allowed transitions. `ClinicDataStore` is an interface, with `JsonClinicDataStore` as the implementation. Five domain exceptions such as `ScheduleConflictException`. |
+| Automated tests | 123 JUnit 6 tests in 15 classes, including parameterized tests, a fixed `Clock`, `@TempDir`, a real data file from the previous release and full menu sessions in `VetCareCliTest`. See [docs/TESTING.md](docs/TESTING.md). |
+| Data safety | `JsonClinicDataStore` writes to a temporary file and then moves it over the old one, so a crash mid-save can't corrupt the data. `ClinicSnapshotValidator` checks every record on load. |
+| Continuous integration | [`ci.yml`](.github/workflows/ci.yml) runs `./mvnw verify` on Java 21 and 25 for every push and pull request. Dependabot keeps dependencies up to date. |
+| Documentation | 18 decisions explained in [DESIGN_DECISIONS.md](docs/DESIGN_DECISIONS.md), plus a class-by-class [walkthrough](docs/PROJECT_WALKTHROUGH.md). |
 
-Each appointment belongs to exactly one **schedule** (`ScheduleResource`): "Dr. Ana", "Room 2", and
-so on. Two appointments conflict when they are on the **same schedule** and their time intervals
-overlap:
+## How it works
 
-```java
-candidateStart.isBefore(existingEnd) && existingStart.isBefore(candidateEnd)
+```mermaid
+%%{init: {'theme':'base','themeVariables':{'primaryColor':'#D8F3DC','primaryTextColor':'#1B4332','primaryBorderColor':'#2D6A4F','lineColor':'#2D6A4F','secondaryColor':'#A8D5BA','tertiaryColor':'#FFFFFF'}}}%%
+flowchart LR
+    U([User at the terminal]) --> CLI[VetCareCli<br/>menu and input]
+    CLI --> S[Services<br/>AppointmentService<br/>PrivacyService ...]
+    S --> V{ScheduleConflictService<br/>TriageService}
+    S --> R[ClinicRepository<br/>in-memory maps]
+    S --> P[PersistenceCoordinator]
+    P --> J[(vetcare-data.json<br/>Gson)]
 ```
 
-- Dr. Ana at 14:00 does not block Dr. Bruno at 14:00.
-- Back-to-back appointments (10:00–10:30 and 10:30–11:00) are allowed.
-- Only appointments that still occupy the slot count: **scheduled** and **completed**.
-  **Cancelled** and **no-show** appointments free it.
+You pick an option in the menu and type the details. `VetCareCli` reads and checks the input, then hands it to a service. The service applies the rules: it asks `ScheduleConflictService` whether the slot is free and `TriageService` what the priority is. If everything is valid, the change goes into `ClinicRepository`, which keeps the data in memory, and `PersistenceCoordinator` saves it to the JSON file right away. If saving a deletion fails, the change is also undone in memory.
 
-A single generic resource type covers veterinarians and rooms. Modeling both at once (a vet *and* a
-room per appointment) would require checking two kinds of conflict, which the current requirements
-do not need.
+## Technical decisions
 
-### Appointment life cycle
+- **I chose a JSON file instead of a database** because I wanted to get layers and validation right first, with no server to install. The `ClinicDataStore` interface keeps that choice contained.
+- **I chose to calculate the triage priority instead of letting the user pick it,** because a person in a hurry might choose "standard" for a patient who can't breathe. The rule lives in one place and has its own tests.
+- **I chose one generic schedule type for vets and rooms instead of two,** because the current rules never need a vet *and* a room on the same appointment. It's listed as a limitation.
+- **I chose to never mark appointments as completed automatically,** because the appointment time passing doesn't mean the patient showed up. Someone at the clinic records it.
 
-```text
-              ┌──> COMPLETED   (attended; keeps the slot occupied)
-SCHEDULED ────┼──> NO_SHOW     (patient did not come; frees the slot)
-              └──> CANCELLED   (frees the slot)
-```
+## Running it
 
-- Only scheduled appointments can be updated, rescheduled, or change status. The other three
-  statuses are final.
-- Completed and no-show can only be recorded **after the appointment has started**. Nothing is
-  marked as completed automatically: the passing of time does not prove that a visit happened.
-
-### Triage priority
-
-1. `EMERGENCY`: a critical condition, breathing difficulty, uncontrolled bleeding, unconsciousness, or seizure.
-2. `URGENT`: a concerning condition, severe pain, repeated vomiting, or inability to stand.
-3. `STANDARD`: no emergency or urgent rule applies.
-
-The daily queue orders scheduled appointments by priority, then registration time (arrival order),
-then start time.
-
-> These rules are intentionally simplified for a software-learning project. They are not a
-> veterinary protocol or medical guidance.
-
-### Deleting and anonymizing personal data
-
-| Operation | What happens | What is kept |
-|---|---|---|
-| Delete owner | The owner, their animals, and all appointments of those animals are removed | Nothing |
-| Delete animal | The animal and its appointments are removed | The owner and other animals |
-| Anonymize owner | Owner name, phone, and email are replaced; animal names and every free-text note are cleared | Appointment dates, types, condition, clinical signs, priorities, statuses; animal species and birth date |
-
-- All three are refused while any related appointment is still **scheduled**: cancel it or record
-  its outcome first.
-- Records are removed or replaced as a whole, so no animal points to a missing owner and no
-  appointment points to a missing animal.
-- The CLI shows what will be affected and requires typing `DELETE` or `ANONYMIZE`.
-- If saving fails, the change is undone in memory.
-
-These operations help a clinic act on a deletion request. They do **not** by themselves make the
-application compliant with the LGPD or any other law: there are no retention policies, no access
-control, and older backups (see below) still contain the original data.
-
-### Persistence and older files
-
-Data is stored in `data/vetcare-data.json` with Gson. The application writes a temporary file and
-then replaces the main file, so an interrupted save cannot corrupt it. On startup, every record is
-validated: unique IDs, existing owners, animals, and schedules, known enum values, and the same field
-rules used for new input.
-
-Files now carry `"schemaVersion": 2`. When the application finds a file from the previous version
-(without schedules), it:
-
-1. converts it in memory, putting existing appointments in a schedule named `Main schedule`;
-2. validates the result; if it is invalid, nothing is written;
-3. copies the original file to `vetcare-data.json.v1-backup.json` (never overwriting an existing backup);
-4. saves the converted data and tells the user where the backup is.
-
-Files written by a newer version are refused without changes. Local JSON data and backups are
-ignored by Git.
-
-## Programming concepts demonstrated
-
-- Java 21, object-oriented design, encapsulation, and small focused classes
-- Layered architecture (`cli`, `service`, `repository`, `persistence`, `model`) and constructor injection
-- Programming to an interface (`ClinicDataStore`)
-- Collections: `Map`, `Set`, `EnumSet`, `EnumMap`, and `PriorityQueue`
-- Comparators, streams, lambdas, and `Optional`
-- Date/time interval logic with `java.time`
-- A state machine expressed with an enum
-- Referential integrity, data migration with backup, and validation of loaded data
-- Automated tests with JUnit 6; Maven and GitHub Actions
-
-## Project structure
-
-```text
-src/main/java/com/amandadamata/vetcare/
-├── cli/          # Console menu and input handling
-├── exception/    # Domain and persistence errors
-├── model/        # Owner, Animal, Appointment, ScheduleResource, enums
-├── persistence/  # JSON loading/saving, validation, migration
-├── repository/   # In-memory collections
-├── service/      # Scheduling, triage, conflicts, reports, schedules, privacy
-├── util/         # Shared validation helpers
-└── Main.java     # Application composition and startup
-
-src/test/java/        # Unit, integration, migration, and CLI tests
-src/test/resources/   # A data file written by the previous release, for migration tests
-docs/                 # Architecture, design decisions, testing, walkthrough
-```
-
-## Requirements
-
-- Java 21 or newer
-- Internet access on the first build, so the Maven Wrapper can download Maven and dependencies
-
-## How to run
+You need Java 21 or newer. The first build downloads Maven and the dependencies through the Maven Wrapper. I built it in IntelliJ IDEA, but any terminal works.
 
 ```bash
 git clone https://github.com/Amandadamata/vetcare-scheduler-java.git
@@ -151,53 +80,43 @@ cd vetcare-scheduler-java
 java -jar target/vetcare-scheduler.jar
 ```
 
-On Windows, replace `./mvnw` with `mvnw.cmd`. To keep demo data elsewhere:
-
-```bash
-VETCARE_DATA_FILE=/tmp/vetcare-demo.json java -jar target/vetcare-scheduler.jar
-```
-
-Before scheduling, register at least one schedule (menu option 17). With a single schedule, it is
-selected automatically.
-
-## Tests
-
 ```bash
 ./mvnw test
 ```
 
-The suite covers triage rules, interval boundaries, conflicts per schedule, simultaneous bookings on
-different schedules, every allowed and forbidden status transition, attendance before the start time,
-deletion and anonymization without broken references, restoring memory after a failed save, invalid
-data files, migration of a file written by the previous release, and complete menu sessions. See
-[docs/TESTING.md](docs/TESTING.md).
+On Windows, use `mvnw.cmd`. To keep demo data in another file, set `VETCARE_DATA_FILE=/tmp/vetcare-demo.json` before running. Register a schedule first (option 17). The demo GIF can be recorded again with [VHS](https://github.com/charmbracelet/vhs): `vhs docs/assets/demo.tape`.
 
-GitHub Actions runs the full Maven verification on Java 21 and 25 for every push and pull request.
+## Project structure
 
-## Current limitations
+```text
+src/main/java/com/amandadamata/vetcare/
+├── cli/          # menu, prompts and input parsing
+├── service/      # scheduling, triage, conflicts, privacy, reports
+├── repository/   # in-memory collections
+├── persistence/  # JSON load/save, validation, migration
+├── model/        # Owner, Animal, Appointment, ScheduleResource and enums
+├── exception/    # domain and persistence errors
+├── util/         # shared validation rules
+└── Main.java     # wires everything together
+src/test/         # 123 tests, plus a data file from the previous release
+docs/             # architecture, design decisions, testing, walkthrough
+```
 
-- Each appointment uses one resource; booking a veterinarian **and** a room together is not modeled.
-- No retention periods, access control, or encryption; migration backups keep the original data until deleted manually.
-- Anonymization keeps animal species and birth date for statistics.
-- One process at a time; JSON offers no concurrent access or database transactions.
-- If an update (not a deletion or anonymization) fails to save, the change stays in memory until the next successful save; the CLI warns the user.
-- No authentication, network API, or graphical interface.
-- Triage rules are educational examples and must not be used for clinical decisions.
+## Limits and what's next
 
-## What I learned
+What it doesn't do yet:
 
-This project moved me from individual Java exercises to a complete application flow: deciding where
-each rule belongs, representing time intervals correctly, using collections for a real purpose,
-modeling a life cycle with explicit transitions, keeping references valid when data is removed, and
-evolving a stored file format without losing existing data.
+- The triage rules are a simplified example for a software project, not veterinary guidance.
+- One process uses the file at a time. There's no login, encryption or network access.
+- Deleting data helps a clinic answer a deletion request, but it doesn't make the app LGPD-compliant on its own. Migration backups keep the original data until someone deletes them.
 
-## Documentation
+Next steps I'm planning:
 
-- [Architecture](docs/ARCHITECTURE.md): layer, domain, and sequence diagrams; status machine; deletion; migration
-- [Design decisions](docs/DESIGN_DECISIONS.md): what was chosen, why, alternatives, and the tests that verify it
-- [Testing](docs/TESTING.md): how to run tests and what each class verifies
-- [Project walkthrough](docs/PROJECT_WALKTHROUGH.md): class-by-class explanation and interview questions
+- Turn the services into a REST API with Spring Boot, which I'm studying now.
+- Replace the JSON file with a SQL database, keeping the same service layer.
+- Let one appointment use a vet and a room at the same time.
 
-## License
+## Author
 
-This project is available under the [MIT License](LICENSE).
+**Amanda da Mata** · Back-End developer in training · Java and Python  
+[LinkedIn](https://www.linkedin.com/in/amanda-da-mata-492106288) · [amandadamataprofissional@gmail.com](mailto:amandadamataprofissional@gmail.com) · [GitHub](https://github.com/Amandadamata)
