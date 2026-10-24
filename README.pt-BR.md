@@ -1,149 +1,77 @@
-# VetCare Scheduler
+<img width="100%" src="https://capsule-render.vercel.app/api?type=rect&color=A8D5BA&height=120&text=VetCare%20Scheduler&fontSize=36&fontColor=1B4332&fontAlignY=40&desc=Agenda%20sem%20conflitos%20e%20triagem%20para%20cl%C3%ADnicas%20veterin%C3%A1rias&descSize=16&descAlignY=75" alt="VetCare Scheduler"/>
+
+[English](README.md) · **Português**
 
 [![Java CI](https://github.com/Amandadamata/vetcare-scheduler-java/actions/workflows/ci.yml/badge.svg)](https://github.com/Amandadamata/vetcare-scheduler-java/actions/workflows/ci.yml)
+![Java 21](https://img.shields.io/badge/Java-21-A8D5BA?style=flat-square&logo=openjdk&logoColor=white&labelColor=1B4332)
+![JUnit 6](https://img.shields.io/badge/JUnit%206-123%20testes-A8D5BA?style=flat-square&logo=junit5&logoColor=white&labelColor=1B4332)
+![Maven](https://img.shields.io/badge/Maven-wrapper-A8D5BA?style=flat-square&logo=apachemaven&logoColor=white&labelColor=1B4332)
+![Gson](https://img.shields.io/badge/dados-JSON%20%2B%20Gson-A8D5BA?style=flat-square&labelColor=1B4332)
+[![Licença: MIT](https://img.shields.io/badge/licen%C3%A7a-MIT-A8D5BA?style=flat-square&labelColor=1B4332)](LICENSE)
 
-[English](README.md) · **Português (Brasil)**
+Aplicação de linha de comando em Java 21 para agendar consultas numa clínica veterinária.
 
-O VetCare Scheduler é uma aplicação Java de linha de comando para consultas veterinárias. Ela mantém
-uma agenda separada para cada veterinário ou sala, calcula uma prioridade de triagem simplificada,
-impede sobreposição de consultas na mesma agenda, acompanha cada consulta até ela ser concluída,
-cancelada ou marcada como falta, e permite que a clínica exclua ou anonimize dados pessoais.
+## O problema
 
-É um projeto pessoal de aprendizado, criado para transformar fundamentos de Java e de
-desenvolvimento de software em uma aplicação funcional com regras de negócio, persistência em
-arquivo, migração de dados e testes automatizados.
+Em clínicas veterinárias pequenas, é comum marcar duas consultas para o mesmo veterinário no mesmo horário, ou deixar um caso urgente esperando atrás de uma consulta de rotina. Num dia corrido, ninguém tem tempo de conferir cada horário à mão. E quando um cliente pede para a clínica apagar os dados dele, apagar sem cuidado pode deixar consultas apontando para um animal que não existe mais.
+
+## A solução
+
+O VetCare mantém uma agenda para cada veterinário ou sala. Antes de marcar, ele confere se o novo horário se sobrepõe a uma consulta daquela agenda. Quando a recepção registra a condição do paciente e os sinais clínicos, o sistema calcula a prioridade de triagem (emergência, urgente ou padrão) e monta a fila do dia nessa ordem. Tudo fica salvo num arquivo JSON local, então os dados continuam lá na próxima vez que o programa abrir.
+
+## Demonstração
+
+![Demonstração no terminal: um agendamento em conflito é recusado, uma emergência é aceita e a fila de triagem a coloca em primeiro lugar](docs/assets/demo.gif)
+
+*A Luna não consegue o horário das 10:15 com a Dra. Ana, porque o Thor está marcado das 10:00 às 10:30. Às 10:30 o agendamento passa e, como a Luna tem dificuldade para respirar, ela entra como emergência. A fila de triagem mostra a Luna primeiro, mesmo com a consulta do Thor começando antes. (A interface do programa é em inglês.)*
 
 ## Funcionalidades
 
-- Cadastrar e atualizar tutores e animais; buscar animais por parte do nome
-- Agendas (recursos): uma por veterinário, sala ou outro recurso que atende uma consulta por vez
-- Agendar, atualizar, remarcar (inclusive para outra agenda), listar, filtrar e cancelar consultas
-- Detecção de conflitos por agenda: duas agendas podem marcar o mesmo horário; a mesma agenda, não
-- Ciclo de vida da consulta: agendada → concluída, falta ou cancelada, com transições validadas
-- Prioridade de triagem `EMERGENCY`, `URGENT` ou `STANDARD` calculada pela condição e pelos sinais clínicos
-- Fila de triagem do dia (`PriorityQueue`) e resumo diário por status, prioridade e tipo
-- Excluir um tutor (com animais e consultas) ou um animal; ou anonimizar um tutor mantendo o histórico de consultas
-- Armazenamento local em JSON com gravação atômica, validação ao carregar e migração automática de arquivos antigos, com backup
+- Uma agenda por veterinário ou sala. Duas agendas podem ter consulta no mesmo horário; a mesma agenda, não.
+- Prioridade de triagem calculada a partir da condição e dos sinais clínicos, nunca escolhida à mão.
+- Fila de triagem do dia e resumo diário por status, prioridade e tipo de consulta.
+- Ciclo de vida da consulta: agendada, depois realizada, falta ou cancelada. Status finais não mudam mais.
+- Exclusão ou anonimização dos dados de um tutor sem deixar referências quebradas.
+- Armazenamento em JSON com gravação segura, validação ao carregar e migração automática de arquivos antigos (com backup).
 
-## Lógica de negócio
+## O que este projeto mostra
 
-### Agendas e conflitos
+| Habilidade | Onde e como aparece |
+|---|---|
+| Arquitetura em camadas | `cli` → `service` → `repository` → `persistence`. O `VetCareCli` só conversa com os serviços, e o `Main` é o único lugar onde as classes concretas são criadas e ligadas pelo construtor. Trocar o JSON por um banco mexeria só em `persistence`. |
+| Regras de negócio | O `ScheduleConflictService` recusa uma consulta quando o intervalo dela se sobrepõe a outra da mesma agenda. Horários colados (10:00–10:30 e 10:30–11:00) são permitidos. O `TriageService` transforma condição e sinais em prioridade. |
+| Coleções com propósito | O `AppointmentService` monta a fila de triagem com uma `PriorityQueue` e um `Comparator` (prioridade, depois ordem de chegada, depois horário). O repositório usa `LinkedHashMap`s com chave `UUID`. |
+| POO e modelagem | `AppointmentStatus` é um enum que define as próprias transições permitidas. `ClinicDataStore` é uma interface, implementada por `JsonClinicDataStore`. Cinco exceções de domínio, como `ScheduleConflictException`. |
+| Testes automatizados | 123 testes JUnit 6 em 15 classes, com testes parametrizados, `Clock` fixo, `@TempDir`, um arquivo de dados real da versão anterior e sessões completas do menu no `VetCareCliTest`. Veja [docs/TESTING.md](docs/TESTING.md). |
+| Segurança dos dados | O `JsonClinicDataStore` grava num arquivo temporário e depois o move por cima do antigo, então uma queda no meio da gravação não corrompe os dados. O `ClinicSnapshotValidator` confere cada registro ao carregar. |
+| Integração contínua | O [`ci.yml`](.github/workflows/ci.yml) roda `./mvnw verify` no Java 21 e no 25 a cada push e pull request. O Dependabot mantém as dependências atualizadas. |
+| Documentação | 18 decisões explicadas em [DESIGN_DECISIONS.md](docs/DESIGN_DECISIONS.md) e um [passo a passo](docs/PROJECT_WALKTHROUGH.md) classe por classe (em inglês). |
 
-Cada consulta pertence a exatamente uma **agenda** (`ScheduleResource`): "Dra. Ana", "Sala 2" e
-assim por diante. Duas consultas entram em conflito quando estão na **mesma agenda** e seus
-intervalos de tempo se sobrepõem:
+## Como funciona
 
-```java
-candidateStart.isBefore(existingEnd) && existingStart.isBefore(candidateEnd)
+```mermaid
+%%{init: {'theme':'base','themeVariables':{'primaryColor':'#D8F3DC','primaryTextColor':'#1B4332','primaryBorderColor':'#2D6A4F','lineColor':'#2D6A4F','secondaryColor':'#A8D5BA','tertiaryColor':'#FFFFFF'}}}%%
+flowchart LR
+    U([Usuária no terminal]) --> CLI[VetCareCli<br/>menu e entrada]
+    CLI --> S[Serviços<br/>AppointmentService<br/>PrivacyService ...]
+    S --> V{ScheduleConflictService<br/>TriageService}
+    S --> R[ClinicRepository<br/>mapas em memória]
+    S --> P[PersistenceCoordinator]
+    P --> J[(vetcare-data.json<br/>Gson)]
 ```
 
-- A Dra. Ana às 14h não bloqueia o Dr. Bruno às 14h.
-- Consultas encostadas (10:00–10:30 e 10:30–11:00) são permitidas.
-- Só contam as consultas que ainda ocupam o horário: **agendadas** e **concluídas**. Consultas
-  **canceladas** e **faltas** liberam o horário.
+Você escolhe uma opção no menu e digita os dados. O `VetCareCli` lê e confere a entrada e passa para um serviço. O serviço aplica as regras: pergunta ao `ScheduleConflictService` se o horário está livre e ao `TriageService` qual é a prioridade. Se tudo estiver certo, a mudança vai para o `ClinicRepository`, que guarda os dados em memória, e o `PersistenceCoordinator` salva no arquivo JSON na mesma hora. Se a gravação de uma exclusão falhar, a mudança também é desfeita na memória.
 
-Um único tipo genérico de recurso cobre veterinários e salas. Modelar os dois ao mesmo tempo (um
-veterinário *e* uma sala por consulta) exigiria verificar dois tipos de conflito, o que os
-requisitos atuais não pedem.
+## Decisões técnicas
 
-### Ciclo de vida da consulta
+- **Escolhi um arquivo JSON em vez de um banco de dados** porque queria acertar primeiro as camadas e a validação, sem servidor para instalar. A interface `ClinicDataStore` deixa essa escolha isolada.
+- **Escolhi calcular a prioridade em vez de deixar a pessoa escolher,** porque alguém com pressa pode marcar "padrão" para um paciente que não consegue respirar. A regra fica num lugar só e tem testes próprios.
+- **Escolhi um único tipo de agenda para veterinários e salas,** porque as regras atuais nunca precisam de um veterinário *e* uma sala na mesma consulta. Isso está registrado como limitação.
+- **Escolhi nunca marcar uma consulta como realizada automaticamente,** porque o horário da consulta passar não quer dizer que o paciente veio. Alguém da clínica registra.
 
-```text
-              ┌──> COMPLETED   (atendida; continua ocupando o horário)
-SCHEDULED ────┼──> NO_SHOW     (paciente faltou; libera o horário)
-              └──> CANCELLED   (libera o horário)
-```
+## Como rodar
 
-- Só consultas agendadas podem ser atualizadas, remarcadas ou mudar de status. Os outros três
-  status são finais.
-- Concluída e falta só podem ser registradas **depois do início da consulta**. Nada é marcado como
-  concluído automaticamente: a passagem do tempo não comprova que o atendimento aconteceu.
-
-### Prioridade de triagem
-
-1. `EMERGENCY`: condição crítica, dificuldade respiratória, sangramento descontrolado, inconsciência ou convulsão.
-2. `URGENT`: condição preocupante, dor intensa, vômitos repetidos ou incapacidade de ficar em pé.
-3. `STANDARD`: nenhuma regra de emergência ou urgência se aplica.
-
-A fila do dia ordena as consultas agendadas por prioridade, depois pela hora de registro (ordem de
-chegada) e depois pelo horário.
-
-> Essas regras foram simplificadas de propósito para um projeto de aprendizado de software. Elas não
-> são um protocolo veterinário nem orientação clínica.
-
-### Exclusão e anonimização de dados pessoais
-
-| Operação | O que acontece | O que é mantido |
-|---|---|---|
-| Excluir tutor | O tutor, seus animais e todas as consultas desses animais são removidos | Nada |
-| Excluir animal | O animal e suas consultas são removidos | O tutor e os outros animais |
-| Anonimizar tutor | Nome, telefone e e-mail do tutor são substituídos; nomes dos animais e todas as observações são apagados | Datas, tipos, condição, sinais clínicos, prioridades e status das consultas; espécie e data de nascimento dos animais |
-
-- As três operações são recusadas enquanto alguma consulta relacionada estiver **agendada**: cancele
-  ou registre o resultado antes.
-- Os registros são removidos ou substituídos por inteiro, então nenhum animal aponta para um tutor
-  inexistente e nenhuma consulta aponta para um animal inexistente.
-- A CLI mostra o que será afetado e exige digitar `DELETE` ou `ANONYMIZE`.
-- Se a gravação falhar, a alteração é desfeita na memória.
-
-Essas operações ajudam a clínica a atender um pedido de exclusão. Elas **não** tornam, por si só, a
-aplicação conforme a LGPD ou qualquer outra lei: não há política de retenção nem controle de acesso,
-e backups antigos (veja abaixo) ainda contêm os dados originais.
-
-### Persistência e arquivos antigos
-
-Os dados ficam em `data/vetcare-data.json`, gravados com Gson. A aplicação grava um arquivo
-temporário e depois substitui o principal, então uma gravação interrompida não corrompe o arquivo.
-Na inicialização, cada registro é validado: IDs únicos, tutores, animais e agendas existentes,
-valores de enum conhecidos e as mesmas regras de campo usadas nas novas entradas.
-
-Os arquivos agora têm `"schemaVersion": 2`. Ao encontrar um arquivo da versão anterior (sem
-agendas), a aplicação:
-
-1. converte em memória, colocando as consultas existentes em uma agenda chamada `Main schedule`;
-2. valida o resultado; se for inválido, nada é gravado;
-3. copia o arquivo original para `vetcare-data.json.v1-backup.json` (nunca sobrescreve um backup existente);
-4. grava os dados convertidos e informa onde está o backup.
-
-Arquivos gravados por uma versão mais nova são recusados sem alterações. Os dados JSON locais e os
-backups são ignorados pelo Git.
-
-## Conceitos de programação demonstrados
-
-- Java 21, orientação a objetos, encapsulamento e classes pequenas e focadas
-- Arquitetura em camadas (`cli`, `service`, `repository`, `persistence`, `model`) e injeção por construtor
-- Programação para interfaces (`ClinicDataStore`)
-- Coleções: `Map`, `Set`, `EnumSet`, `EnumMap` e `PriorityQueue`
-- Comparators, streams, lambdas e `Optional`
-- Lógica de intervalos de data e hora com `java.time`
-- Máquina de estados expressa com um enum
-- Integridade referencial, migração de dados com backup e validação dos dados carregados
-- Testes automatizados com JUnit 6; Maven e GitHub Actions
-
-## Estrutura do projeto
-
-```text
-src/main/java/com/amandadamata/vetcare/
-├── cli/          # Menu do console e leitura de entradas
-├── exception/    # Erros de domínio e de persistência
-├── model/        # Owner, Animal, Appointment, ScheduleResource, enums
-├── persistence/  # Leitura/gravação do JSON, validação, migração
-├── repository/   # Coleções em memória
-├── service/      # Agendamento, triagem, conflitos, relatórios, agendas, privacidade
-├── util/         # Validações compartilhadas
-└── Main.java     # Montagem e inicialização da aplicação
-
-src/test/java/        # Testes de unidade, integração, migração e CLI
-src/test/resources/   # Um arquivo de dados gravado pela versão anterior, para os testes de migração
-docs/                 # Arquitetura, decisões, testes e walkthrough
-```
-
-## Requisitos
-
-- Java 21 ou superior
-- Acesso à internet no primeiro build, para o Maven Wrapper baixar o Maven e as dependências
-
-## Como executar
+Você precisa do Java 21 ou mais novo. O primeiro build baixa o Maven e as dependências pelo Maven Wrapper. Desenvolvi no IntelliJ IDEA, mas qualquer terminal funciona.
 
 ```bash
 git clone https://github.com/Amandadamata/vetcare-scheduler-java.git
@@ -152,55 +80,43 @@ cd vetcare-scheduler-java
 java -jar target/vetcare-scheduler.jar
 ```
 
-No Windows, use `mvnw.cmd` no lugar de `./mvnw`. Para guardar dados de demonstração em outro lugar:
-
-```bash
-VETCARE_DATA_FILE=/tmp/vetcare-demo.json java -jar target/vetcare-scheduler.jar
-```
-
-Antes de agendar, cadastre pelo menos uma agenda (opção 17 do menu). Com uma única agenda, ela é
-escolhida automaticamente.
-
-A interface da aplicação está em inglês.
-
-## Testes
-
 ```bash
 ./mvnw test
 ```
 
-A suíte cobre regras de triagem, fronteiras de intervalos, conflitos por agenda, agendamentos
-simultâneos em agendas diferentes, todas as transições de status permitidas e proibidas, registro de
-comparecimento antes do início, exclusão e anonimização sem referências quebradas, restauração da
-memória após falha ao salvar, arquivos de dados inválidos, migração de um arquivo gravado pela versão
-anterior e sessões completas do menu. Veja [docs/TESTING.md](docs/TESTING.md).
+No Windows, use `mvnw.cmd`. Para guardar dados de teste em outro arquivo, defina `VETCARE_DATA_FILE=/tmp/vetcare-demo.json` antes de rodar. Cadastre uma agenda primeiro (opção 17). O GIF da demonstração pode ser gravado de novo com o [VHS](https://github.com/charmbracelet/vhs): `vhs docs/assets/demo.tape`.
 
-O GitHub Actions executa a verificação completa do Maven com Java 21 e 25 a cada push e pull request.
+## Estrutura do projeto
 
-## Limitações atuais
+```text
+src/main/java/com/amandadamata/vetcare/
+├── cli/          # menu, perguntas e leitura da entrada
+├── service/      # agenda, triagem, conflitos, privacidade, relatórios
+├── repository/   # coleções em memória
+├── persistence/  # leitura e gravação do JSON, validação, migração
+├── model/        # Owner, Animal, Appointment, ScheduleResource e enums
+├── exception/    # erros de domínio e de persistência
+├── util/         # regras de validação compartilhadas
+└── Main.java     # liga todas as peças
+src/test/         # 123 testes e um arquivo de dados da versão anterior
+docs/             # arquitetura, decisões, testes, passo a passo
+```
 
-- Cada consulta usa um recurso; reservar um veterinário **e** uma sala ao mesmo tempo não é modelado.
-- Não há prazos de retenção, controle de acesso nem criptografia; os backups de migração guardam os dados originais até serem apagados manualmente.
-- A anonimização mantém espécie e data de nascimento dos animais, para estatísticas.
-- Um processo por vez; JSON não oferece acesso concorrente nem transações de banco de dados.
-- Se uma atualização (não uma exclusão ou anonimização) falhar ao salvar, a alteração fica em memória até a próxima gravação bem-sucedida; a CLI avisa o usuário.
-- Não há autenticação, API de rede nem interface gráfica.
-- As regras de triagem são exemplos educacionais e não devem ser usadas em decisões clínicas.
+## Limites e próximos passos
 
-## O que aprendi
+O que ainda não faz:
 
-Este projeto me levou de exercícios isolados de Java para o fluxo completo de uma aplicação: decidir
-onde cada regra deve ficar, representar intervalos de tempo corretamente, usar coleções com um
-propósito real, modelar um ciclo de vida com transições explícitas, manter as referências válidas
-quando dados são removidos e evoluir o formato de um arquivo gravado sem perder os dados existentes.
+- As regras de triagem são um exemplo simplificado para um projeto de software, não orientação veterinária.
+- Um processo por vez usa o arquivo. Não há login, criptografia nem acesso pela rede.
+- A exclusão ajuda a clínica a atender um pedido de exclusão, mas sozinha não torna o sistema adequado à LGPD. Os backups de migração guardam os dados originais até alguém apagá-los.
 
-## Documentação (em inglês)
+Próximos passos que estou planejando:
 
-- [Arquitetura](docs/ARCHITECTURE.md): diagramas de camadas, domínio e sequência; máquina de estados; exclusão; migração
-- [Decisões de projeto](docs/DESIGN_DECISIONS.md): o que foi escolhido, por quê, alternativas e os testes que verificam
-- [Testes](docs/TESTING.md): como executar e o que cada classe verifica
-- [Walkthrough do projeto](docs/PROJECT_WALKTHROUGH.md): explicação classe por classe e perguntas de entrevista
+- Transformar os serviços numa API REST com Spring Boot, que estou estudando agora.
+- Trocar o arquivo JSON por um banco SQL, mantendo a mesma camada de serviços.
+- Permitir que uma consulta use um veterinário e uma sala ao mesmo tempo.
 
-## Licença
+## Autora
 
-Este projeto está disponível sob a [Licença MIT](LICENSE).
+**Amanda da Mata** · Desenvolvedora Back-End em formação · Java e Python  
+[LinkedIn](https://www.linkedin.com/in/amanda-da-mata-492106288) · [amandadamataprofissional@gmail.com](mailto:amandadamataprofissional@gmail.com) · [GitHub](https://github.com/Amandadamata)
