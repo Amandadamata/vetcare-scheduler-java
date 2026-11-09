@@ -11,6 +11,20 @@
 
 A Java 21 command-line app for booking appointments at a vet clinic.
 
+## Where it came from
+
+VetCare was my first project after months of studying Java on my own, and it started with a real place: a small veterinary clinic here in Goiânia, Brazil. Before writing any code, I sat down with the clinic team to understand how their day works: how appointments are booked, what goes wrong when the schedule fills up, and how they decide who is seen first.
+
+Three needs came out of those conversations, and each one became a rule in the code:
+
+| What the clinic needed | What VetCare does |
+|---|---|
+| Stop the same vet from ending up with two patients at the same time | One schedule per vet or room, and any booking that overlaps another one is refused |
+| Make sure an urgent case never waits behind a routine check-up on a busy morning | The receptionist records the clinical signs and the app works out the priority, so nobody has to decide in a hurry |
+| Handle clients who ask for their data to be deleted | Data can be deleted or anonymized without breaking the history of past appointments |
+
+I wrote these needs down as requirements before starting, and I kept coming back to them while building and testing. It's my own project from start to finish: the requirements, the design, the code, the tests and the documentation.
+
 ## The problem
 
 Small veterinary clinics often book two appointments for the same vet at the same time, or leave an urgent case waiting behind a routine check-up. On a busy day nobody has time to check every slot by hand. And when a client asks the clinic to delete their data, deleting it carelessly can leave appointments pointing to an animal that no longer exists.
