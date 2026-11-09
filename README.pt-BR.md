@@ -11,6 +11,20 @@
 
 Aplicação de linha de comando em Java 21 para agendar consultas numa clínica veterinária.
 
+## De onde ele veio
+
+O VetCare foi meu primeiro projeto depois de meses estudando Java por conta própria, e ele começou num lugar real: uma pequena clínica veterinária aqui em Goiânia. Antes de escrever qualquer código, conversei com a equipe da clínica para entender como o dia deles funciona: como as consultas são marcadas, o que dá errado quando a agenda lota e como eles decidem quem é atendido primeiro.
+
+Dessas conversas saíram três necessidades, e cada uma virou uma regra no código:
+
+| O que a clínica precisava | O que o VetCare faz |
+|---|---|
+| Evitar que o mesmo veterinário fique com dois pacientes no mesmo horário | Uma agenda por veterinário ou sala, e qualquer marcação que se sobreponha a outra é recusada |
+| Garantir que um caso urgente nunca espere atrás de uma consulta de rotina numa manhã corrida | A recepção registra os sinais clínicos e o sistema calcula a prioridade, então ninguém precisa decidir na pressa |
+| Atender clientes que pedem para apagar seus dados | Os dados podem ser apagados ou anonimizados sem quebrar o histórico das consultas antigas |
+
+Anotei essas necessidades como requisitos antes de começar e voltei a elas o tempo todo enquanto construía e testava. É um projeto meu do começo ao fim: os requisitos, o desenho, o código, os testes e a documentação.
+
 ## O problema
 
 Em clínicas veterinárias pequenas, é comum marcar duas consultas para o mesmo veterinário no mesmo horário, ou deixar um caso urgente esperando atrás de uma consulta de rotina. Num dia corrido, ninguém tem tempo de conferir cada horário à mão. E quando um cliente pede para a clínica apagar os dados dele, apagar sem cuidado pode deixar consultas apontando para um animal que não existe mais.
